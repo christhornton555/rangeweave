@@ -4,7 +4,7 @@
 
 This document is the normative byte-level specification for Rangeweave protocol **0.1**. It is intentionally small enough to implement in MicroPython, Kotlin and other embedded/host environments without a serialization framework.
 
-Protocol 0.1 defines stream framing and five sensor/health record types. It does **not** yet define a device/configuration metadata record; that will be added before the first acquisition-firmware release once the metadata/privacy requirements are settled.
+Protocol 0.1 defines stream framing, five sensor/health record types, and an extensible `STREAM_INFO` metadata record. The metadata design deliberately uses an ephemeral per-boot session identifier rather than requiring a globally stable hardware identifier.
 
 ## 1. Design rules
 
@@ -79,7 +79,7 @@ The CRC covers the 12-byte header followed by the payload. It does not include t
 - A gap therefore makes packet loss/drop detectable.
 - It wraps modulo `2^32`.
 - A device reset may restart the sequence. A transport reconnect alone should not reset it.
-- A future stream/session metadata record will make reset/session boundaries explicit; v0.1 consumers should treat a large backwards sequence discontinuity as a probable new device session.
+- `STREAM_INFO.session_id` makes reset/session boundaries explicit; consumers should reset per-session sequence accounting when the session identifier changes.
 
 ### 2.4 Header flags
 
@@ -115,6 +115,7 @@ Consumers must use `CLOCK_SYNC` observations to map LSM ticks to MCU time rather
 0x03  TOF_GRID
 0x04  CLOCK_SYNC
 0x05  STATUS
+0x06  STREAM_INFO
 ```
 
 Existing record layouts are immutable within protocol major version 0. Later minor revisions may add new record types.
@@ -299,7 +300,68 @@ Counters are monotonically increasing within one MCU session and wrap modulo the
 0xFFF0  reserved
 ```
 
-## 10. Recording rule
+## 10. STREAM_INFO — 0x06
+
+STREAM_INFO describes the current producer/session configuration without requiring a globally stable device identifier.
+
+The fixed prefix is 10 bytes:
+
+```text
+type       field
+uint64     session_id
+uint16     info_revision
+```
+
+The remainder of the payload is a sequence of TLVs:
+
+```text
+uint8      tag
+uint8      length
+uint8[]    value[length]
+```
+
+There is no TLV count; parse until the outer payload length is exhausted.
+
+`session_id` is an **ephemeral per-boot/session identifier** used to distinguish resets and stream sessions. It is not a cryptographic nonce and is not required to be derived from a stable chip serial number.
+
+`info_revision` starts at zero and increments if producer configuration changes in a way that changes the meaning of later records.
+
+Unknown TLV tags must be preserved or ignored, not treated as a framing error.
+
+v0.1 defines these TLV tags:
+
+```text
+0x01  FIRMWARE_LABEL             UTF-8 bytes
+0x02  SOURCE_PROFILE             UTF-8 bytes
+
+0x10  LSM_WHOAMI                uint8
+0x11  MAG_WHOAMI                uint8
+0x12  TOF_I2C_ADDRESS           uint8
+0x13  LSM_FREQ_FINE             int8 (two's complement)
+0x14  LSM_CTRL1_XL              uint8
+0x15  LSM_CTRL2_G               uint8
+0x16  LSM_FIFO_CTRL3            uint8
+0x17  LSM_FIFO_CTRL4            uint8
+
+0x20  MAG_CTRL_REGS_1_TO_5      5 raw bytes
+
+0x30  TOF_GRID_CONFIG           uint8 rows, uint8 cols, uint8 configured_hz
+0x31  TOF_DEFAULT_FIELD_MASK    uint16 little-endian
+```
+
+`FIRMWARE_LABEL` and `SOURCE_PROFILE` are descriptive labels, not parser dispatch keys. Numeric semantics still come from the protocol specification and the documented source profile.
+
+The reference acquisition firmware should emit STREAM_INFO:
+
+- at startup;
+- after any configuration revision;
+- periodically while using a one-way transport, so a host attaching mid-stream can recover session/configuration context.
+
+A 10-second repeat interval is the initial recommendation, not a wire-format requirement.
+
+A stable chip serial/device UUID is deliberately **not** a required v0.1 field. A later optional identity mechanism must consider privacy and multi-device use explicitly.
+
+## 11. Recording rule
 
 The initial host recorder should write complete wire frames, including each trailing `0x00`, to `packets.bin` without translating them into a second binary representation.
 
@@ -307,7 +369,7 @@ A replay source should feed those bytes through the same stream decoder used for
 
 Human-readable metadata and calibration are separate files; they do not replace the sensor packets.
 
-## 11. Error handling
+## 12. Error handling
 
 A stream consumer should distinguish:
 
@@ -320,7 +382,7 @@ A stream consumer should distinguish:
 
 A corrupt frame must not poison later frames. Recovery boundary is the next zero delimiter.
 
-## 12. Cross-language conformance
+## 13. Cross-language conformance
 
 Canonical fixtures live in `protocol/test-vectors/`.
 
@@ -332,11 +394,9 @@ For protocol 0.1 the same fixture bytes must be consumed by:
 
 Tests must include at least one corruption/resynchronisation case.
 
-## 13. Deferred from v0.1
+## 14. Deferred from v0.1
 
-Before acquisition firmware is declared feature-complete, a later protocol work item must define device/configuration metadata sufficient to describe the actual sensor profile and scaling without introducing an unwanted globally stable device identifier.
-
-Also deferred:
+Still deferred:
 
 - command/control packets;
 - host-to-device negotiation;
@@ -348,7 +408,7 @@ Also deferred:
 
 Those concerns must not be smuggled into transport-specific code.
 
-## 14. Reference implementation
+## 15. Reference implementation
 
 The standard-library-only reference implementation is:
 
