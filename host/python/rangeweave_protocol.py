@@ -21,6 +21,7 @@ RECORD_MAG = 0x02
 RECORD_TOF_GRID = 0x03
 RECORD_CLOCK_SYNC = 0x04
 RECORD_STATUS = 0x05
+RECORD_STREAM_INFO = 0x06
 
 TOF_FIELD_DISTANCE_MM = 0x0001
 TOF_FIELD_REFLECTANCE_PERCENT = 0x0002
@@ -32,6 +33,20 @@ TOF_KNOWN_FIELD_MASK = (
     | TOF_FIELD_REFLECTANCE_PERCENT
     | TOF_FIELD_TARGET_STATUS
 )
+
+INFO_FIRMWARE_LABEL = 0x01
+INFO_SOURCE_PROFILE = 0x02
+INFO_LSM_WHOAMI = 0x10
+INFO_MAG_WHOAMI = 0x11
+INFO_TOF_I2C_ADDRESS = 0x12
+INFO_LSM_FREQ_FINE = 0x13
+INFO_LSM_CTRL1_XL = 0x14
+INFO_LSM_CTRL2_G = 0x15
+INFO_LSM_FIFO_CTRL3 = 0x16
+INFO_LSM_FIFO_CTRL4 = 0x17
+INFO_MAG_CTRL_REGS_1_TO_5 = 0x20
+INFO_TOF_GRID_CONFIG = 0x30
+INFO_TOF_DEFAULT_FIELD_MASK = 0x31
 
 MAG_FLAG_RETRY_USED = 0x01
 
@@ -47,6 +62,7 @@ _MAG = struct.Struct("<QQhhhBB")
 _TOF_PREFIX = struct.Struct("<QQBBBBH")
 _CLOCK_SYNC = struct.Struct("<QQQ")
 _STATUS = struct.Struct("<QIIIIIIIIIHH")
+_STREAM_INFO_PREFIX = struct.Struct("<QH")
 
 
 class ProtocolError(ValueError):
@@ -143,7 +159,26 @@ class Status:
     status_flags: int
 
 
-DecodedRecord = Union[ImuBatch, MagSample, TofGrid, ClockSync, Status]
+@dataclass(frozen=True)
+class InfoTlv:
+    tag: int
+    value: bytes
+
+
+@dataclass(frozen=True)
+class StreamInfo:
+    session_id: int
+    info_revision: int
+    tlvs: tuple[InfoTlv, ...]
+
+    def first_value(self, tag: int) -> Optional[bytes]:
+        for item in self.tlvs:
+            if item.tag == tag:
+                return item.value
+        return None
+
+
+DecodedRecord = Union[ImuBatch, MagSample, TofGrid, ClockSync, Status, StreamInfo]
 
 
 def crc16_ccitt_false(data: bytes) -> int:
@@ -383,6 +418,24 @@ def decode_record(frame: Frame) -> DecodedRecord:
         if len(payload) != _STATUS.size:
             raise FrameError("STATUS payload length mismatch")
         return Status(*_STATUS.unpack(payload))
+
+    if frame.record_type == RECORD_STREAM_INFO:
+        if len(payload) < _STREAM_INFO_PREFIX.size:
+            raise FrameError("STREAM_INFO payload too short")
+        session_id, info_revision = _STREAM_INFO_PREFIX.unpack_from(payload, 0)
+        offset = _STREAM_INFO_PREFIX.size
+        tlvs = []
+        while offset < len(payload):
+            if offset + 2 > len(payload):
+                raise FrameError("STREAM_INFO truncated TLV header")
+            tag = payload[offset]
+            length = payload[offset + 1]
+            offset += 2
+            if offset + length > len(payload):
+                raise FrameError("STREAM_INFO truncated TLV value")
+            tlvs.append(InfoTlv(tag, bytes(payload[offset:offset + length])))
+            offset += length
+        return StreamInfo(session_id, info_revision, tuple(tlvs))
 
     raise UnsupportedRecordError(
         "unsupported record type 0x{:02X}".format(frame.record_type)
