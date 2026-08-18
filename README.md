@@ -1,6 +1,6 @@
 # Rangeweave - RGB-Free Active Depth + IMU Spatial Mapping
 
-> **Project status: sensor acquisition baseline validated; tracking and 3D reconstruction are work in progress.**
+> **Project status: sensor acquisition baseline validated; protocol/acquisition software is now in development; tracking and 3D reconstruction are work in progress.**
 
 This project explores a small, inexpensive, **RGB-free** sensing module that combines sparse time-of-flight depth with inertial sensing. The goal is to turn synchronized depth + motion observations into trajectories, sparse point clouds and eventually 3D maps of objects and environments, while keeping the sensing head compact enough to migrate beyond the current Raspberry Pi Pico prototype.
 
@@ -74,14 +74,20 @@ A second healthy physical IMU **does not need to reproduce the reference unit's 
 - Deterministic LIS3MDL addressing and reliable magnetometer acquisition under the tested workload.
 - Reproducibility self-test for newly assembled reference stacks.
 
+**EXPERIMENTAL / implementation candidate**
+
+- Rangeweave wire protocol v0.1: COBS framing, CRC16, global packet sequence and `IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC`, `STATUS` and `STREAM_INFO` records.
+- Source clock domains preserved explicitly so replay can refit the common timeline rather than inheriting a firmware-derived mapped timestamp.
+- Standard-library Python protocol decoder/stream parser.
+- Shared byte-level golden fixtures and corruption/resynchronisation tests.
+
 **NEXT**
 
-- Transport-independent binary packet specification.
-- Pico acquisition firmware separate from diagnostic firmware.
-- Python USB capture + lossless recording + replay.
-- Kotlin/Android parser using the same golden packet fixtures.
-- ESP32-class portability spike before the host architecture becomes Pico-specific.
-- First calibrated 64-point depth projection and live sparse point-cloud viewer.
+- Implement Pico acquisition firmware separate from diagnostic firmware, including the packetizer/queue and `STREAM_INFO`/health emission.
+- Implement Python USB capture + lossless recording + replay.
+- Implement a Kotlin/Android parser using the same golden packet fixtures.
+- Run an ESP32-class portability spike before the host architecture becomes Pico-specific.
+- Build the first calibrated 64-point depth projection and live sparse point-cloud viewer.
 
 **NOT YET CLAIMED**
 
@@ -95,10 +101,10 @@ A second healthy physical IMU **does not need to reproduce the reference unit's 
 
 - [`docs/`](docs/) - build guide, roadmap, architecture, ADRs, calibration/porting notes and validation evidence.
 - [`firmware/pico2w/diagnostics/`](firmware/pico2w/diagnostics/) - curated builder-facing hardware diagnostics.
-- [`firmware/pico2w/acquisition/`](firmware/pico2w/acquisition/) - future sensor-stream firmware.
+- [`firmware/pico2w/acquisition/`](firmware/pico2w/acquisition/) - next sensor-stream firmware stage.
 - [`firmware/esp32/`](firmware/esp32/) - planned portability work.
-- [`protocol/`](protocol/) - future language-neutral packet specification and golden vectors.
-- [`host/python/`](host/python/) - future reference capture/replay/geometry implementation.
+- [`protocol/`](protocol/) - language-neutral wire specification and golden vectors.
+- [`host/python/`](host/python/) - Python reference protocol implementation and future capture/replay/geometry stack.
 - [`android/`](android/) - Android portability notes and future implementation.
 - [`hardware/`](hardware/) - BOM, wiring and mechanical/PCB notes.
 - [`datasets/`](datasets/) - policy and, later, small intentionally published golden recordings.

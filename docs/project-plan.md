@@ -74,15 +74,20 @@ No host parser or mapping algorithm may depend on MicroPython objects, Pico GPIO
 
 ## Protocol and recording requirements
 
-The protocol should be binary, versioned, language-neutral, resynchronisable, sequence-numbered, explicitly endian-defined and transport-agnostic. Firmware version, protocol version and calibration-schema version must be independent.
+Protocol v0.1 is now an **experimental implementation candidate**. Its normative byte-level specification lives in [`../protocol/spec-v0.1.md`](../protocol/spec-v0.1.md).
+
+The protocol is binary, versioned, language-neutral, resynchronisable, sequence-numbered, explicitly little-endian and transport-agnostic. Firmware version, protocol version and calibration-schema version remain independent.
 
 Initial logical records:
 
-- **IMU:** sequence, LSM timestamp, raw accel XYZ, raw gyro XYZ.
-- **MAG:** sequence, MCU timestamp, raw magnetic XYZ, quality/status.
-- **TOF:** sequence, frame-observed MCU timestamp, mapped LSM timestamp, 64 ranges, 64 reflectance values, validity/status.
-- **CLOCK_SYNC:** MCU time and raw LSM timestamp/correlation quality.
-- **STATUS:** versions, sensor configuration/identity, `FREQ_FINE`, FIFO/error counters.
+- **IMU_BATCH:** one or more raw accel/gyro samples, each carrying an extended native LSM timestamp tick.
+- **MAG:** raw magnetic XYZ plus MCU-before/after read brackets and status/retry metadata.
+- **TOF_GRID:** sparse range grid plus MCU data-ready/read-complete brackets and optional reflectance/target-status arrays; no precomputed mapped LSM time.
+- **CLOCK_SYNC:** raw MCU-before / LSM-tick / MCU-after clock-correlation observation.
+- **STATUS:** cumulative acquisition, FIFO, queue/backpressure and error counters.
+- **STREAM_INFO:** ephemeral per-session identity plus extensible TLV sensor/configuration metadata; no globally stable hardware identifier is required.
+
+The crucial timing rule is that the wire stream preserves **source clock domains**. Common-time mapping is a host/replay operation derived from recorded `CLOCK_SYNC` observations, so an improved clock model can be applied to old recordings.
 
 Canonical capture layout initially:
 
@@ -148,7 +153,7 @@ Use named frames (`tof_optical`, `imu_sensor`, `mag_sensor`, `device_body`, `wor
 | Phase | Status | Exit gate |
 |---|---|---|
 | 0. Sensor-stack validation | **DONE / BASELINE** | Fresh assembly can reach `SYSTEM READY: PASS` without per-unit hard-coded ODR. |
-| 1. Protocol + PC capture/replay | **NEXT** | Live and replayed streams decode identically; packet loss is detectable. |
+| 1. Protocol + PC capture/replay | **IN PROGRESS** | Live and replayed streams decode identically; packet loss is detectable. |
 | 1A. Android protocol smoke test | Next after protocol stabilises | Python and Kotlin decode identical golden fixtures. |
 | 1B. MCU portability spike | Early planned | ESP32-class synthetic packet source is indistinguishable at protocol level except metadata. |
 | 2. Raw viewer + 64-point projection | Planned | Flat wall produces expected sparse plane / known ranges. |
@@ -163,12 +168,17 @@ Use named frames (`tof_optical`, `imu_sensor`, `mag_sensor`, `device_body`, `wor
 
 ## Immediate work package
 
-1. Freeze [`firmware/pico2w/diagnostics/reproducible_sensor_stack.py`](../firmware/pico2w/diagnostics/reproducible_sensor_stack.py) as the diagnostic baseline. Its behaviour is derived from the validated v0.5 candidate.
-2. Design protocol framing/fields before writing the acquisition loop.
-3. Create byte-level golden fixtures for every initial record type.
-4. Implement Pico acquisition firmware using complete raw records.
-5. Implement dependency-light Python protocol decoder.
-6. Implement USB receiver/recorder and replay adapter.
+Completed in the protocol v0.1 candidate:
+
+1. Freeze [`firmware/pico2w/diagnostics/reproducible_sensor_stack.py`](../firmware/pico2w/diagnostics/reproducible_sensor_stack.py) as the diagnostic baseline.
+2. Define binary framing and initial record semantics before writing the acquisition loop.
+3. Create byte-level golden fixtures for every initial v0.1 record type plus corruption/resynchronisation coverage.
+4. Implement a dependency-light Python reference decoder/stream parser.
+
+Next:
+
+5. Implement Pico acquisition firmware using complete raw records and a transport-independent packetizer/queue.
+6. Implement USB receiver/recorder and replay adapter using the same stream decoder.
 7. Implement Android/Kotlin parser + USB smoke test while the protocol is still small.
 8. Record stationary, rotation-only, translation and simple scene datasets.
 9. Build raw viewer + first 64-point ToF projection.
@@ -225,6 +235,10 @@ Use short Architecture Decision Records (ADRs) for decisions such as transport i
 - The reference prototype can acquire sparse-ToF and inertial data together under the tested workload without the observed FIFO loss/error conditions.
 - The diagnostic firmware measures per-unit IMU timing instead of assuming the reference unit's real sample rate.
 - The core sensor path does not require RGB imagery.
+
+### Experimental now
+
+- Protocol v0.1 framing/records and Python reference decoding are implementation candidates backed by shared golden byte fixtures; they are not yet validated against live Pico acquisition firmware or Kotlin/Android.
 
 ### Not yet supported
 

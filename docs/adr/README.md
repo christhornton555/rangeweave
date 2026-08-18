@@ -11,3 +11,5 @@ ADRs capture decisions that future contributors might otherwise “simplify” b
 | [0005](0005-python-reference-kotlin-conformance.md) | Python reference + Kotlin golden-fixture conformance | Accepted |
 | [0006](0006-rgb-free-no-beacon-core.md) | RGB-free/no-installed-beacon core | Accepted |
 | [0007](0007-physics-first-ml-augmentation.md) | Physics-first, uncertainty-aware ML augmentation | Accepted |
+| [0008](0008-cobs-crc16-stream-framing.md) | COBS + CRC16 stream framing for protocol v0.1 | Accepted candidate |
+| [0009](0009-preserve-source-clock-domains.md) | Preserve source clock domains; derive common time on host/replay | Accepted candidate |

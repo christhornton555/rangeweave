@@ -1,31 +1,57 @@
-# Packet protocol - design requirements
+# Rangeweave packet protocol
 
-**Status: PLANNED. No byte-level protocol is frozen yet.**
+**Status: EXPERIMENTAL / protocol v0.1 implementation candidate.**
 
-The next engineering task is to design a small binary protocol before writing the acquisition firmware.
+The first byte-level protocol now exists. The normative specification is [`../protocol/spec-v0.1.md`](../protocol/spec-v0.1.md).
 
-## Required properties
+## v0.1 decisions
 
-- versioned independently of firmware and calibration schemas;
-- language-neutral;
-- explicit endianness and integer widths;
-- framed and resynchronisable after corruption or mid-stream connection;
-- sequence-numbered so packet loss is detectable;
-- explicit units/scale metadata or fixed units defined in the spec;
-- transport-agnostic;
-- raw-first: retain raw sensor values where practical;
-- live and recorded byte streams should use the same packet frames.
+- COBS-framed binary stream with `0x00` delimiters.
+- CRC-16/CCITT-FALSE on every decoded frame.
+- Global uint32 packet sequence for loss detection.
+- Little-endian fixed-width integer fields.
+- Maximum decoded frame size: 1024 bytes.
+- Initial records:
+  - `IMU_BATCH`
+  - `MAG`
+  - `TOF_GRID`
+  - `CLOCK_SYNC`
+  - `STATUS`
+  - `STREAM_INFO`
+- IMU samples may be batched (up to 16) to avoid making USB framing overhead part of the long-term architecture.
+- Raw sensor/source clock domains are preserved. Host software derives common time from `CLOCK_SYNC`; sensor packets do not contain precomputed clock-model output.
+- ToF range, reflectance and target-status arrays are independently presence-masked. Protocol v0.1 supports one target per zone and grids up to 64 zones.
+- Live and replay data use the same framed bytes.
 
-## Initial logical records
+## Why the ToF packet changed from the early plan
 
-- **IMU** - sequence, native LSM timestamp, raw accel XYZ, raw gyro XYZ.
-- **MAG** - sequence, MCU timestamp, raw magnetic XYZ, status/quality.
-- **TOF** - sequence, frame-observed MCU timestamp, mapped LSM timestamp, 64 ranges, 64 reflectance values, validity/status.
-- **CLOCK_SYNC** - MCU timestamp plus raw LSM timestamp and correlation quality.
-- **STATUS/META** - firmware/protocol/schema versions, sensor identities/configuration, `FREQ_FINE`, FIFO/drop/error counters.
+The earlier roadmap proposed transmitting both the observed MCU timestamp and an estimated/mapped LSM timestamp with each ToF frame.
+
+Protocol v0.1 does **not** transmit the mapped timestamp. The mapped value is derived from the current clock fit, so recording it as though it were raw evidence would make later clock-model improvements harder to apply consistently.
+
+Instead:
+
+```text
+IMU              -> native extended LSM ticks
+MAG / ToF         -> MCU monotonic observation/read times
+CLOCK_SYNC        -> raw MCU-before / LSM-tick / MCU-after correlation
+host / replay     -> fitted common timeline
+```
+
+See [ADR-0009](adr/0009-preserve-source-clock-domains.md).
 
 ## Cross-platform gate
 
-Before extending the protocol beyond the initial records, create byte-level golden fixtures and require both Python and Kotlin decoders to produce the same semantic objects from those bytes.
+The standard-library Python reference decoder is in [`../host/python/rangeweave_protocol.py`](../host/python/rangeweave_protocol.py).
 
-See ADR-0001 and ADR-0005.
+Canonical byte fixtures are in [`../protocol/test-vectors/v0.1.json`](../protocol/test-vectors/v0.1.json).
+
+The Kotlin/Android decoder must consume the same fixtures; no Android-specific reinterpretation of field widths, byte order, timing or zone array order is allowed.
+
+## Metadata/privacy boundary
+
+`STREAM_INFO` supplies an extensible sensor/session configuration block with an ephemeral per-boot `session_id`. A globally stable chip/device identifier is deliberately not required by protocol v0.1.
+
+## Still deliberately deferred
+
+Protocol v0.1 does not yet define command/control, compression, wall-clock timestamps, encryption/authentication or multiple ToF targets per zone.

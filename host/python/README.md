@@ -1,14 +1,19 @@
 # Python reference host
 
-**Status: PLANNED / PC-first reference implementation.**
+**Status: protocol decoder started; capture/replay next.**
 
-Initial modules should be dependency-light around the protocol/capture boundary, then use scientific/3D libraries behind project-owned interfaces as needed.
+The protocol/capture boundary is deliberately dependency-light. Scientific/3D libraries can be added later behind project-owned interfaces without becoming wire-format dependencies.
 
-Planned order:
+Implemented now:
 
-1. packet decoder;
-2. USB receiver + lossless recorder;
-3. replay adapter using the same decoded stream API;
+1. [`rangeweave_protocol.py`](rangeweave_protocol.py) — protocol v0.1 COBS framing, CRC, stream recovery and semantic decoders;
+2. shared golden-vector tests in [`../../tests/test_protocol.py`](../../tests/test_protocol.py).
+
+Next:
+
+1. USB byte-source adapter;
+2. lossless `packets.bin` recorder;
+3. replay adapter using the same stream decoder;
 4. raw health/depth viewer;
 5. calibrated 64-point projection;
 6. orientation;

@@ -1,0 +1,33 @@
+name: Protocol tests
+
+on:
+  push:
+    paths:
+      - "host/python/**"
+      - "protocol/**"
+      - "tests/**"
+      - ".github/workflows/protocol-tests.yml"
+  pull_request:
+    paths:
+      - "host/python/**"
+      - "protocol/**"
+      - "tests/**"
+      - ".github/workflows/protocol-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  python-protocol-conformance:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run protocol conformance tests
+        run: python -m unittest discover -s tests -v
