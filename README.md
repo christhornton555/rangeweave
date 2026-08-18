@@ -76,14 +76,14 @@ A second healthy physical IMU **does not need to reproduce the reference unit's 
 
 **EXPERIMENTAL / implementation candidate**
 
-- Rangeweave wire protocol v0.1: COBS framing, CRC16, global packet sequence and initial `IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC` and `STATUS` records.
+- Rangeweave wire protocol v0.1: COBS framing, CRC16, global packet sequence and `IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC`, `STATUS` and `STREAM_INFO` records.
+- Source clock domains preserved explicitly so replay can refit the common timeline rather than inheriting a firmware-derived mapped timestamp.
 - Standard-library Python protocol decoder/stream parser.
 - Shared byte-level golden fixtures and corruption/resynchronisation tests.
 
 **NEXT**
 
-- Define the deferred stream/config metadata record for protocol v0.1.
-- Implement Pico acquisition firmware separate from diagnostic firmware.
+- Implement Pico acquisition firmware separate from diagnostic firmware, including the packetizer/queue and `STREAM_INFO`/health emission.
 - Implement Python USB capture + lossless recording + replay.
 - Implement a Kotlin/Android parser using the same golden packet fixtures.
 - Run an ESP32-class portability spike before the host architecture becomes Pico-specific.
