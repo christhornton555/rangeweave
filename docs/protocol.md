@@ -17,6 +17,7 @@ The first byte-level protocol now exists. The normative specification is [`../pr
   - `TOF_GRID`
   - `CLOCK_SYNC`
   - `STATUS`
+  - `STREAM_INFO`
 - IMU samples may be batched (up to 16) to avoid making USB framing overhead part of the long-term architecture.
 - Raw sensor/source clock domains are preserved. Host software derives common time from `CLOCK_SYNC`; sensor packets do not contain precomputed clock-model output.
 - ToF range, reflectance and target-status arrays are independently presence-masked. Protocol v0.1 supports one target per zone and grids up to 64 zones.
@@ -47,8 +48,10 @@ Canonical byte fixtures are in [`../protocol/test-vectors/v0.1.json`](../protoco
 
 The Kotlin/Android decoder must consume the same fixtures; no Android-specific reinterpretation of field widths, byte order, timing or zone array order is allowed.
 
+## Metadata/privacy boundary
+
+`STREAM_INFO` supplies an extensible sensor/session configuration block with an ephemeral per-boot `session_id`. A globally stable chip/device identifier is deliberately not required by protocol v0.1.
+
 ## Still deliberately deferred
 
-Protocol v0.1 does not yet define device/configuration metadata, command/control, compression, wall-clock timestamps, encryption/authentication or multiple ToF targets per zone.
-
-The next protocol subtask, before acquisition firmware is declared complete, is a small metadata/config record that describes the sensor profile without silently introducing a globally stable tracking identifier.
+Protocol v0.1 does not yet define command/control, compression, wall-clock timestamps, encryption/authentication or multiple ToF targets per zone.
