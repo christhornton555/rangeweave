@@ -3,7 +3,7 @@
 ```text
 sparse-tof-spatial-mapping/
   README.md
-  LICENSE                       # scaffold: choose before public release
+  LICENSE
   THIRD_PARTY_NOTICES.md
   CONTRIBUTING.md
   CHANGELOG.md
@@ -60,13 +60,3 @@ sparse-tof-spatial-mapping/
     ISSUE_TEMPLATE/
 ```
 
-## Deliberately excluded from normal source control
-
-- superseded dated scratch scripts (`test04`-`test08` etc.);
-- old DOCX documentation revisions;
-- local copies of MicroPython `.uf2` images;
-- the VL53L5CX firmware blob until redistribution/pinning is deliberately handled;
-- large/raw personal capture directories;
-- local editor/virtual-environment files.
-
-Keep the old local development folder offline as a pre-Git archive if desired. Future history belongs in Git.
