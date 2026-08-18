@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local development archives and generated office docs
+local-archive/
+*.docx
+~$*.docx
+
+# MCU/vendor binaries: fetch/pin upstream rather than casually vendoring
+*.uf2
+/vl53l5cx_firmware.bin
+
+# Local captures / large experiments (small reviewed fixtures may be explicitly added under datasets/)
+captures/
+capture_*/
+recordings/
+
+# Build / package output
+build/
+dist/
+*.zip
+*.tar.gz
+
+# Logs / temporary files
+*.tmp
+*.log

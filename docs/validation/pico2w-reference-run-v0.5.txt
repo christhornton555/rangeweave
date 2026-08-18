@@ -1,0 +1,170 @@
+Reproducible ToF + 9DoF sensor stack
+Firmware candidate v0.5
+
+IMU bus: ['0x1E', '0x6A']
+ToF bus: ['0x29']
+PASS: deterministic I2C addresses
+LSM6DSOX WHO_AM_I: 0x6C
+LIS3MDL WHO_AM_I:  0x3D
+PASS: sensor identities
+
+Unit timing discovery:
+  INTERNAL_FREQ_FINE raw: 0xEC
+  INTERNAL_FREQ_FINE signed: -20
+  Factory-estimated timestamp tick: 25.773196 us
+  Factory-estimated real IMU ODR: 101.046720 Hz
+  Factory-estimated IMU period: 9896.412 us
+  Expected raw FIFO timestamp ticks/slot: 384 (+/-4)
+LSM timestamp after reset/start: 198 ticks
+
+Initialising VL53L5CX on I2C1...
+Firmware upload may take a few seconds.
+VL53L5CX ranging started.
+LSM6DSOX FIFO enabled:
+  accel BDR = 104-Hz nominal
+  gyro BDR  = 104-Hz nominal
+  timestamp = one per FIFO time slot
+  continuous FIFO mode
+
+Runtime validation started.
+Self-test will evaluate after 12 seconds.
+The firmware will continue running after PASS/FAIL.
+
+C,points=1,pico_us=1646988,lsm_ticks=63281,bracket_us=351,model_tick_us=0.000000,factory_tick_us=25.773196,ppm_vs_factory=0.0,fit_rms_us=0.00
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=14,tof_err=0,tof_avg_read_us=18808,tof_max_read_us=19082,clock_points=1,clock_tick_us=0.000000,measured_odr_hz=0.000,clock_ppm=0.0,ready=PENDING
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18771,tof_max_read_us=18802,clock_points=1,clock_tick_us=0.000000,measured_odr_hz=0.000,clock_ppm=0.0,ready=PENDING
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18774,tof_max_read_us=18836,clock_points=1,clock_tick_us=0.000000,measured_odr_hz=0.000,clock_ppm=0.0,ready=PENDING
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18777,tof_max_read_us=18811,clock_points=1,clock_tick_us=0.000000,measured_odr_hz=0.000,clock_ppm=0.0,ready=PENDING
+S,xl=102,gy=102,ts=102,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18792,tof_max_read_us=18848,clock_points=1,clock_tick_us=0.000000,measured_odr_hz=0.000,clock_ppm=0.0,ready=PENDING
+C,points=2,pico_us=6648409,lsm_ticks=257367,bracket_us=341,model_tick_us=25.769096,factory_tick_us=25.773196,ppm_vs_factory=-159.0,fit_rms_us=0.18
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18924,tof_max_read_us=18974,clock_points=2,clock_tick_us=25.769096,measured_odr_hz=101.058,clock_ppm=-159.0,ready=PENDING
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18927,tof_max_read_us=18982,clock_points=2,clock_tick_us=25.769096,measured_odr_hz=101.058,clock_ppm=-159.0,ready=PENDING
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18917,tof_max_read_us=18987,clock_points=2,clock_tick_us=25.769096,measured_odr_hz=101.058,clock_ppm=-159.0,ready=PENDING
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19575,tof_max_read_us=28770,clock_points=2,clock_tick_us=25.769096,measured_odr_hz=101.058,clock_ppm=-159.0,ready=PENDING
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18913,tof_max_read_us=19036,clock_points=2,clock_tick_us=25.769096,measured_odr_hz=101.058,clock_ppm=-159.0,ready=PENDING
+V,acc=(-2.619,-2.524,7.676)m/s2,gyro=(-44.37,4.22,-12.81)dps,mag=(-37.84,-15.20,-108.78)uT,mag_total=116.18uT,tof_avg=469mm,tof_centre=475mm,tof_refl=23pct,tof_ready_pico_us=11534123,tof_est_lsm_ticks=446963
+C,points=3,pico_us=11647167,lsm_ticks=451350,bracket_us=343,model_tick_us=25.769074,factory_tick_us=25.773196,ppm_vs_factory=-159.9,fit_rms_us=2.09
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18923,tof_max_read_us=19044,clock_points=3,clock_tick_us=25.769074,measured_odr_hz=101.058,clock_ppm=-159.9,ready=PENDING
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18924,tof_max_read_us=19030,clock_points=3,clock_tick_us=25.769074,measured_odr_hz=101.058,clock_ppm=-159.9,ready=PENDING
+
+========================================
+ REPRODUCIBILITY SELF TEST
+========================================
+Unit-specific timing:
+  FREQ_FINE: -20 (raw 0xEC)
+  Factory-estimated tick: 25.773196 us
+  Factory-estimated ODR: 101.046720 Hz
+  Measured clock-model tick: 25.769074 us
+  Measured clock-model ODR: 101.057830 Hz
+  Factory vs measured: -159.9 ppm
+  Clock fit points: 3
+  Clock fit RMS: 2.09 us
+
+FIFO / timestamp:
+  XL/GY/TS records: 1213/1213/1213
+  timestamp ticks/slot: min=384 avg=384.000 max=384
+  expected ticks/slot: 384 +/-4
+  maximum FIFO backlog: 12 words
+  FIFO structural integrity: PASS
+  stream alignment: PASS
+  timestamp consistency: PASS
+
+Magnetometer:
+  successful/attempted: 120/120
+  success ratio: 100.00%
+  retries recovered: 0
+  dropped: 0
+  magnetometer acquisition: PASS
+
+VL53L5CX:
+  frames: 179
+  observed frame rate: 14.907 fps
+  errors: 0
+  maximum get_data() time: 28770 us
+  ToF acquisition: PASS
+
+Clock model:
+  Pico <-> LSM model: PASS
+  Factory trim agreement: PASS
+
+========================================
+ SYSTEM READY: PASS
+ No hard-coded per-unit ODR is in use.
+========================================
+
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18936,tof_max_read_us=19203,clock_points=3,clock_tick_us=25.769074,measured_odr_hz=101.058,clock_ppm=-159.9,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18933,tof_max_read_us=19056,clock_points=3,clock_tick_us=25.769074,measured_odr_hz=101.058,clock_ppm=-159.9,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18937,tof_max_read_us=19040,clock_points=3,clock_tick_us=25.769074,measured_odr_hz=101.058,clock_ppm=-159.9,ready=YES
+C,points=4,pico_us=16647492,lsm_ticks=645394,bracket_us=344,model_tick_us=25.769056,factory_tick_us=25.773196,ppm_vs_factory=-160.6,fit_rms_us=3.41
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18945,tof_max_read_us=19051,clock_points=4,clock_tick_us=25.769056,measured_odr_hz=101.058,clock_ppm=-160.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19594,tof_max_read_us=28797,clock_points=4,clock_tick_us=25.769056,measured_odr_hz=101.058,clock_ppm=-160.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18941,tof_max_read_us=19063,clock_points=4,clock_tick_us=25.769056,measured_odr_hz=101.058,clock_ppm=-160.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18931,tof_max_read_us=19096,clock_points=4,clock_tick_us=25.769056,measured_odr_hz=101.058,clock_ppm=-160.6,ready=YES
+V,acc=(0.044,0.251,10.012)m/s2,gyro=(0.27,-0.02,0.06)dps,mag=(-42.34,-20.43,-106.18)uT,mag_total=116.12uT,tof_avg=211mm,tof_centre=727mm,tof_refl=8pct,tof_ready_pico_us=21527906,tof_est_lsm_ticks=834784
+S,xl=99,gy=99,ts=99,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=9,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18943,tof_max_read_us=19083,clock_points=4,clock_tick_us=25.769056,measured_odr_hz=101.058,clock_ppm=-160.6,ready=YES
+C,points=5,pico_us=21647762,lsm_ticks=839437,bracket_us=340,model_tick_us=25.769018,factory_tick_us=25.773196,ppm_vs_factory=-162.1,fit_rms_us=11.31
+S,xl=103,gy=103,ts=103,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=15,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18951,tof_max_read_us=19095,clock_points=5,clock_tick_us=25.769018,measured_odr_hz=101.058,clock_ppm=-162.1,ready=YES
+S,xl=102,gy=102,ts=102,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=9,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18974,tof_max_read_us=19128,clock_points=5,clock_tick_us=25.769018,measured_odr_hz=101.058,clock_ppm=-162.1,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=9,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18969,tof_max_read_us=19175,clock_points=5,clock_tick_us=25.769018,measured_odr_hz=101.058,clock_ppm=-162.1,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=9,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18979,tof_max_read_us=19148,clock_points=5,clock_tick_us=25.769018,measured_odr_hz=101.058,clock_ppm=-162.1,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18975,tof_max_read_us=19152,clock_points=5,clock_tick_us=25.769018,measured_odr_hz=101.058,clock_ppm=-162.1,ready=YES
+C,points=6,pico_us=26646573,lsm_ticks=1033422,bracket_us=344,model_tick_us=25.769012,factory_tick_us=25.773196,ppm_vs_factory=-162.3,fit_rms_us=10.63
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19004,tof_max_read_us=19176,clock_points=6,clock_tick_us=25.769012,measured_odr_hz=101.058,clock_ppm=-162.3,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18982,tof_max_read_us=19187,clock_points=6,clock_tick_us=25.769012,measured_odr_hz=101.058,clock_ppm=-162.3,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18983,tof_max_read_us=19191,clock_points=6,clock_tick_us=25.769012,measured_odr_hz=101.058,clock_ppm=-162.3,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18986,tof_max_read_us=19186,clock_points=6,clock_tick_us=25.769012,measured_odr_hz=101.058,clock_ppm=-162.3,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18981,tof_max_read_us=19187,clock_points=6,clock_tick_us=25.769012,measured_odr_hz=101.058,clock_ppm=-162.3,ready=YES
+V,acc=(0.057,0.258,10.022)m/s2,gyro=(0.20,-0.03,0.09)dps,mag=(-42.08,-20.91,-106.81)uT,mag_total=116.69uT,tof_avg=297mm,tof_centre=748mm,tof_refl=11pct,tof_ready_pico_us=31522095,tof_est_lsm_ticks=1222623
+C,points=7,pico_us=31648146,lsm_ticks=1227515,bracket_us=341,model_tick_us=25.769002,factory_tick_us=25.773196,ppm_vs_factory=-162.7,fit_rms_us=10.61
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18994,tof_max_read_us=19215,clock_points=7,clock_tick_us=25.769002,measured_odr_hz=101.058,clock_ppm=-162.7,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18989,tof_max_read_us=19202,clock_points=7,clock_tick_us=25.769002,measured_odr_hz=101.058,clock_ppm=-162.7,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18997,tof_max_read_us=19204,clock_points=7,clock_tick_us=25.769002,measured_odr_hz=101.058,clock_ppm=-162.7,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19006,tof_max_read_us=19219,clock_points=7,clock_tick_us=25.769002,measured_odr_hz=101.058,clock_ppm=-162.7,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19020,tof_max_read_us=19274,clock_points=7,clock_tick_us=25.769002,measured_odr_hz=101.058,clock_ppm=-162.7,ready=YES
+C,points=8,pico_us=36646712,lsm_ticks=1421491,bracket_us=345,model_tick_us=25.768998,factory_tick_us=25.773196,ppm_vs_factory=-162.9,fit_rms_us=10.84
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19019,tof_max_read_us=19230,clock_points=8,clock_tick_us=25.768998,measured_odr_hz=101.058,clock_ppm=-162.9,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19005,tof_max_read_us=19237,clock_points=8,clock_tick_us=25.768998,measured_odr_hz=101.058,clock_ppm=-162.9,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18989,tof_max_read_us=19239,clock_points=8,clock_tick_us=25.768998,measured_odr_hz=101.058,clock_ppm=-162.9,ready=YES
+S,xl=102,gy=102,ts=102,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19004,tof_max_read_us=19235,clock_points=8,clock_tick_us=25.768998,measured_odr_hz=101.058,clock_ppm=-162.9,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18997,tof_max_read_us=19239,clock_points=8,clock_tick_us=25.768998,measured_odr_hz=101.058,clock_ppm=-162.9,ready=YES
+V,acc=(0.053,0.268,10.024)m/s2,gyro=(0.27,-0.03,0.10)dps,mag=(-41.71,-20.37,-107.91)uT,mag_total=117.47uT,tof_avg=212mm,tof_centre=105mm,tof_refl=9pct,tof_ready_pico_us=41514430,tof_est_lsm_ticks=1610389
+C,points=8,pico_us=41666980,lsm_ticks=1616309,bracket_us=358,model_tick_us=25.768990,factory_tick_us=25.773196,ppm_vs_factory=-163.2,fit_rms_us=7.17
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19008,tof_max_read_us=19241,clock_points=8,clock_tick_us=25.768990,measured_odr_hz=101.058,clock_ppm=-163.2,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19011,tof_max_read_us=19237,clock_points=8,clock_tick_us=25.768990,measured_odr_hz=101.058,clock_ppm=-163.2,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19024,tof_max_read_us=19231,clock_points=8,clock_tick_us=25.768990,measured_odr_hz=101.058,clock_ppm=-163.2,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19014,tof_max_read_us=19245,clock_points=8,clock_tick_us=25.768990,measured_odr_hz=101.058,clock_ppm=-163.2,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19013,tof_max_read_us=19226,clock_points=8,clock_tick_us=25.768990,measured_odr_hz=101.058,clock_ppm=-163.2,ready=YES
+C,points=8,pico_us=46666179,lsm_ticks=1810310,bracket_us=361,model_tick_us=25.768980,factory_tick_us=25.773196,ppm_vs_factory=-163.6,fit_rms_us=6.53
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19003,tof_max_read_us=19228,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=16,tof_err=0,tof_avg_read_us=19612,tof_max_read_us=28755,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=14,tof_err=0,tof_avg_read_us=18942,tof_max_read_us=19197,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=16,tof_err=0,tof_avg_read_us=18933,tof_max_read_us=19204,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18914,tof_max_read_us=18941,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+V,acc=(0.063,0.257,10.030)m/s2,gyro=(0.26,0.02,0.11)dps,mag=(-42.39,-20.52,-107.00)uT,mag_total=116.91uT,tof_avg=255mm,tof_centre=745mm,tof_refl=10pct,tof_ready_pico_us=51574045,tof_est_lsm_ticks=2000766
+C,points=8,pico_us=51662028,lsm_ticks=2004181,bracket_us=357,model_tick_us=25.768978,factory_tick_us=25.773196,ppm_vs_factory=-163.6,fit_rms_us=6.67
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18918,tof_max_read_us=18948,clock_points=8,clock_tick_us=25.768978,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18927,tof_max_read_us=18977,clock_points=8,clock_tick_us=25.768978,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18923,tof_max_read_us=18970,clock_points=8,clock_tick_us=25.768978,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18908,tof_max_read_us=18955,clock_points=8,clock_tick_us=25.768978,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18923,tof_max_read_us=18968,clock_points=8,clock_tick_us=25.768978,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+C,points=8,pico_us=56656948,lsm_ticks=2198015,bracket_us=359,model_tick_us=25.768984,factory_tick_us=25.773196,ppm_vs_factory=-163.4,fit_rms_us=6.36
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=15,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=19592,tof_max_read_us=28807,clock_points=8,clock_tick_us=25.768984,measured_odr_hz=101.058,clock_ppm=-163.4,ready=YES
+S,xl=102,gy=102,ts=102,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18918,tof_max_read_us=18990,clock_points=8,clock_tick_us=25.768984,measured_odr_hz=101.058,clock_ppm=-163.4,ready=YES
+S,xl=100,gy=100,ts=100,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18912,tof_max_read_us=18999,clock_points=8,clock_tick_us=25.768984,measured_odr_hz=101.058,clock_ppm=-163.4,ready=YES
+S,xl=102,gy=102,ts=102,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18913,tof_max_read_us=18933,clock_points=8,clock_tick_us=25.768984,measured_odr_hz=101.058,clock_ppm=-163.4,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18928,tof_max_read_us=18972,clock_points=8,clock_tick_us=25.768984,measured_odr_hz=101.058,clock_ppm=-163.4,ready=YES
+V,acc=(0.060,0.260,10.033)m/s2,gyro=(0.26,-0.02,0.09)dps,mag=(-41.63,-20.90,-106.74)uT,mag_total=116.46uT,tof_avg=134mm,tof_centre=92mm,tof_refl=5pct,tof_ready_pico_us=61568551,tof_est_lsm_ticks=2388616
+C,points=8,pico_us=61652699,lsm_ticks=2391882,bracket_us=360,model_tick_us=25.768980,factory_tick_us=25.773196,ppm_vs_factory=-163.6,fit_rms_us=5.15
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18928,tof_max_read_us=18958,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=100,gy=100,ts=100,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18936,tof_max_read_us=18959,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=102,gy=102,ts=102,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18944,tof_max_read_us=18977,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18937,tof_max_read_us=19012,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=99,gy=99,ts=99,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18940,tof_max_read_us=19027,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+C,points=8,pico_us=66652955,lsm_ticks=2585924,bracket_us=358,model_tick_us=25.768980,factory_tick_us=25.773196,ppm_vs_factory=-163.6,fit_rms_us=5.48
+S,xl=103,gy=103,ts=103,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18938,tof_max_read_us=19060,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=9,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18936,tof_max_read_us=19082,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=9,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18946,tof_max_read_us=19053,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=12,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18963,tof_max_read_us=19072,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+S,xl=101,gy=101,ts=101,fifo_err=0,fifo_ovr=0,fifo_full=0,fifo_other=0,fifo_level_max=9,slot_jump=0,slot_incomplete=0,ts_meta_bad=0,ts_dt_min=384,ts_dt_avg=384.000,ts_dt_max=384,mag_ok=10,mag_retry_ok=0,mag_drop=0,mag_not_ready=0,tof=15,tof_err=0,tof_avg_read_us=18956,tof_max_read_us=19037,clock_points=8,clock_tick_us=25.768980,measured_odr_hz=101.058,clock_ppm=-163.6,ready=YES
+V,acc=(0.055,0.263,10.030)m/s2,gyro=(0.29,-0.03,0.04)dps,mag=(-42.09,-20.78,-106.37)uT,mag_total=116.27uT,tof_avg=208mm,tof_centre=213mm,tof_refl=18pct,tof_ready_pico_us=71562884,tof_est_lsm_ticks=2776460
+C,points=8,pico_us=71647806,lsm_ticks=2779756,bracket_us=357,model_tick_us=25.768972,factory_tick_us=25.773196,ppm_vs_factory=-163.8,fit_rms_us=5.83

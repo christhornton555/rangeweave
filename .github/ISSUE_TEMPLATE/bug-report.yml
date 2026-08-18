@@ -1,0 +1,27 @@
+name: Software / documentation bug
+description: Report a reproducible project bug that is not a hardware reproduction report
+title: "[bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit / tag
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python/Kotlin/firmware versions and relevant hardware.

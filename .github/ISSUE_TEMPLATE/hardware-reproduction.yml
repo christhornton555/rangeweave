@@ -1,0 +1,41 @@
+name: Hardware reproduction report
+description: Report a new build, pass or hardware-level failure
+title: "[hardware] "
+labels: [hardware]
+body:
+  - type: markdown
+    attributes:
+      value: "Please run the builder-facing diagnostics before debugging mapping code. A different real IMU ODR is not automatically a failure."
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware and wiring
+      description: Board variants, wiring differences, rigid/breadboard state.
+    validations:
+      required: true
+  - type: textarea
+    id: runtime
+    attributes:
+      label: MicroPython runtime
+      description: Paste os.uname() and sys.implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: scan
+    attributes:
+      label: I2C scan / identities
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Reproducibility self-test
+      description: Paste the complete self-test block.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional observations
