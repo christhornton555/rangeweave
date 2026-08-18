@@ -1,7 +1,7 @@
 # Repository layout
 
 ```text
-sparse-tof-spatial-mapping/
+rangeweave/
   README.md
   LICENSE
   THIRD_PARTY_NOTICES.md
@@ -23,7 +23,6 @@ sparse-tof-spatial-mapping/
     hardware-porting.md
     development-history.md
     repository-layout.md
-    licensing.md
     validation/
     adr/
 
@@ -59,4 +58,3 @@ sparse-tof-spatial-mapping/
   .github/
     ISSUE_TEMPLATE/
 ```
-

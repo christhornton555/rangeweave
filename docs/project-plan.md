@@ -1,4 +1,4 @@
-# Privacy-First Sparse-ToF Spatial Mapping
+# Rangeweave — Project Plan and Architecture Roadmap
 
 **Living project plan and architecture roadmap. Initial public baseline derived from v0.2 (18 August 2026).**
 
@@ -6,7 +6,7 @@
 
 ## Project intent
 
-Develop a small, inexpensive, privacy-preserving sensing module that combines sparse active depth and inertial sensing to estimate motion and build 3D representations of objects and environments. The architecture must remain portable beyond the Raspberry Pi Pico prototype, support PC and Android hosts, and be suitable for eventual open-source publication.
+Develop a small, inexpensive, privacy-preserving sensing module that combines sparse active depth and inertial sensing to estimate motion and build 3D representations of objects and environments. The architecture must remain portable beyond the Raspberry Pi Pico prototype, support PC and Android hosts, and remain practical to maintain, reproduce and extend as an open-source project.
 
 ## Current validated baseline
 
@@ -33,7 +33,7 @@ The diagnostic firmware is now a baseline. The next firmware is an acquisition/t
 9. **Replay everything.** Live and recorded data should enter the same host-processing interfaces.
 10. **Transport independence.** USB now; Android USB, BLE/Wi-Fi or local recording later without changing packet meaning.
 11. **Cross-platform by construction.** Python is the reference implementation; Kotlin/Android receives specs and golden test vectors from the beginning.
-12. **Open-source readiness.** Clearly label validated, experimental and planned behaviour.
+12. **Open-source maintainability.** Clearly label validated, experimental and planned behaviour, and keep public documentation aligned with the implemented system.
 
 ## Layered architecture
 
@@ -183,10 +183,10 @@ Use named frames (`tof_optical`, `imu_sensor`, `mag_sensor`, `device_body`, `wor
 - Bench calibration (flat wall, static IMU, controlled rotation, known-pose scanner).
 - Repeatable trajectory tests (return-to-start, straight line, feature-rich/feature-poor scenes).
 
-## Suggested open-source repository
+## Repository layout
 
 ```text
-repo/
+rangeweave/
   README.md
   LICENSE
   CONTRIBUTING.md

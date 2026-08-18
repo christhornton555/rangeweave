@@ -122,7 +122,7 @@ See the [project plan](docs/project-plan.md) and [architecture decision records]
 
 ## Contributing
 
-Contributions are welcome once the repository is published. Please start with [CONTRIBUTING.md](CONTRIBUTING.md). Hardware bug reports are most useful when they include the bus scan, sensor IDs, complete reproducibility self-test, MicroPython runtime string and a clear wiring photo.
+Contributions are welcome. Please start with [CONTRIBUTING.md](CONTRIBUTING.md). Hardware bug reports are most useful when they include the bus scan, sensor IDs, complete reproducibility self-test, MicroPython runtime string and a clear wiring photo.
 
 The early experimental scripts that led to the final bus/FIFO/timestamp architecture are intentionally **not** part of the normal source tree. Their conclusions are summarized in [development history](docs/development-history.md); Git history should carry future iterations from this point onward.
 
