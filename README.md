@@ -1,4 +1,4 @@
-# Sparse-ToF Spatial Mapping
+# Rangeweave - RGB-Free Active Depth + IMU Spatial Mapping
 
 > **Project status: sensor acquisition baseline validated; tracking and 3D reconstruction are work in progress.**
 
