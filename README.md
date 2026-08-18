@@ -128,4 +128,4 @@ The early experimental scripts that led to the final bus/FIFO/timestamp architec
 
 ## License
 
-**Before making the repository public, replace the current `LICENSE` scaffold with the license you want to grant.** See [docs/licensing.md](docs/licensing.md). No third-party firmware binaries are included in this repository; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+See [LICENSE](LICENSE). No third-party firmware binaries are included in this repository; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
