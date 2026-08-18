@@ -7,7 +7,8 @@
   "notes": [
     "wire_hex includes the trailing 00 stream delimiter.",
     "decoded_frame_hex is the COBS-decoded frame including CRC16.",
-    "Numeric arrays are in protocol wire order, not yet mapped into a 3D coordinate frame."
+    "Numeric arrays are in protocol wire order, not yet mapped into a 3D coordinate frame.",
+    "STREAM_INFO TLV byte values are represented as {\"hex\": \"...\"} in expected_record."
   ],
   "vectors": [
     {
@@ -125,6 +126,50 @@
         "clock_sync_errors": 0,
         "queue_high_water": 18,
         "status_flags": 3
+      }
+    },
+    {
+      "name": "stream_info",
+      "protocol": "0.1",
+      "record_type": 6,
+      "sequence": 47,
+      "wire_hex": "0352570301060248022f0101098877665544332211013e010e7069636f32772d6163712d64657602207069636f32772d766c35336c3563782d6c736d3664736f782d6c6973336d646c1301ec300308080f3102030395c300",
+      "decoded_frame_hex": "52570001060048002f00000088776655443322110000010e7069636f32772d6163712d64657602207069636f32772d766c35336c3563782d6c736d3664736f782d6c6973336d646c1301ec300308080f3102030095c3",
+      "expected_record": {
+        "session_id": 1234605616436508552,
+        "info_revision": 0,
+        "tlvs": [
+          {
+            "tag": 1,
+            "value": {
+              "hex": "7069636f32772d6163712d646576"
+            }
+          },
+          {
+            "tag": 2,
+            "value": {
+              "hex": "7069636f32772d766c35336c3563782d6c736d3664736f782d6c6973336d646c"
+            }
+          },
+          {
+            "tag": 19,
+            "value": {
+              "hex": "ec"
+            }
+          },
+          {
+            "tag": 48,
+            "value": {
+              "hex": "08080f"
+            }
+          },
+          {
+            "tag": 49,
+            "value": {
+              "hex": "0300"
+            }
+          }
+        ]
       }
     }
   ],
