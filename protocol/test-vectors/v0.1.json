@@ -1,0 +1,141 @@
+{
+  "format": "rangeweave-protocol-test-vectors",
+  "protocol_version": {
+    "major": 0,
+    "minor": 1
+  },
+  "notes": [
+    "wire_hex includes the trailing 00 stream delimiter.",
+    "decoded_frame_hex is the COBS-decoded frame including CRC16.",
+    "Numeric arrays are in protocol wire order, not yet mapped into a 3D coordinate frame."
+  ],
+  "vectors": [
+    {
+      "name": "imu_batch_two_samples",
+      "protocol": "0.1",
+      "record_type": 1,
+      "sequence": 42,
+      "wire_hex": "0352570301010229022a010104028001010201010102640338ff0840bffe8e0225fc0203010201010102650d3afffc3fc0fe8a022cfc33fc00",
+      "decoded_frame_hex": "52570001010029002a000000028001000001000000640038ff0040bffe8e0225fc000300000100000065003afffc3fc0fe8a022cfc33fc",
+      "expected_record": {
+        "samples": [
+          {
+            "lsm_tick": 4294967680,
+            "accel_x": 100,
+            "accel_y": -200,
+            "accel_z": 16384,
+            "gyro_x": -321,
+            "gyro_y": 654,
+            "gyro_z": -987
+          },
+          {
+            "lsm_tick": 4294968064,
+            "accel_x": 101,
+            "accel_y": -198,
+            "accel_z": 16380,
+            "gyro_x": -320,
+            "gyro_y": 650,
+            "gyro_z": -980
+          }
+        ]
+      }
+    },
+    {
+      "name": "mag_sample",
+      "protocol": "0.1",
+      "record_type": 2,
+      "sequence": 43,
+      "wire_hex": "0352570301020218022b01010460e316010101010414e416010101010b2efb3702d6ff08012aa300",
+      "decoded_frame_hex": "52570001020018002b00000060e316000000000014e41600000000002efb3702d6ff08012aa3",
+      "expected_record": {
+        "mcu_before_us": 1500000,
+        "mcu_after_us": 1500180,
+        "mag_x": -1234,
+        "mag_y": 567,
+        "mag_z": -42,
+        "status_reg": 8,
+        "read_flags": 1
+      }
+    },
+    {
+      "name": "tof_grid_2x2",
+      "protocol": "0.1",
+      "record_type": 3,
+      "sequence": 44,
+      "wire_hex": "0352570301030226022c01010480841e0101010104b8ce1e01010101040202010207026402fa0fe803ff0f05145064050509ff876e00",
+      "decoded_frame_hex": "52570001030026002c00000080841e0000000000b8ce1e00000000000202010007006400fa00e803ff0f05145064050509ff876e",
+      "expected_record": {
+        "mcu_ready_us": 2000000,
+        "mcu_read_complete_us": 2019000,
+        "rows": 2,
+        "cols": 2,
+        "targets_per_zone": 1,
+        "layout_id": 0,
+        "field_mask": 7,
+        "distance_mm": [
+          100,
+          250,
+          1000,
+          4095
+        ],
+        "reflectance_percent": [
+          5,
+          20,
+          80,
+          100
+        ],
+        "target_status": [
+          5,
+          5,
+          9,
+          255
+        ]
+      }
+    },
+    {
+      "name": "clock_sync",
+      "protocol": "0.1",
+      "record_type": 4,
+      "sequence": 45,
+      "wire_hex": "0352570301040218022d010104a025260101010104e87a010101010104fe26260101010103e93500",
+      "decoded_frame_hex": "52570001040018002d000000a025260000000000e87a010000000000fe26260000000000e935",
+      "expected_record": {
+        "mcu_before_us": 2500000,
+        "lsm_tick": 97000,
+        "mcu_after_us": 2500350
+      }
+    },
+    {
+      "name": "status",
+      "protocol": "0.1",
+      "record_type": 5,
+      "sequence": 46,
+      "wire_hex": "0352570301050230022e010104c0c62d0101010103d204010202010101010101010101010101010102030101020101010101010101010101021202030317f300",
+      "decoded_frame_hex": "52570001050030002e000000c0c62d0000000000d204000002000000000000000000000000000000030000000100000000000000000000001200030017f3",
+      "expected_record": {
+        "mcu_time_us": 3000000,
+        "frames_created": 1234,
+        "frames_dropped": 2,
+        "imu_samples_dropped": 0,
+        "fifo_overruns": 0,
+        "fifo_structural_errors": 0,
+        "mag_retries": 3,
+        "mag_errors": 1,
+        "tof_errors": 0,
+        "clock_sync_errors": 0,
+        "queue_high_water": 18,
+        "status_flags": 3
+      }
+    }
+  ],
+  "stream_cases": [
+    {
+      "name": "corrupt_frame_then_resync",
+      "wire_hex": "0352570301010229022a010104028001010201010202640338ff0840bffe8e0225fc0203010201010102650d3afffc3fc0fe8a022cfc33fc000352570301040218022d010104a025260101010104e87a010101010104fe26260101010103e93500",
+      "expected_valid_sequences": [
+        45
+      ],
+      "expected_bad_frames": 1
+    }
+  ]
+}
