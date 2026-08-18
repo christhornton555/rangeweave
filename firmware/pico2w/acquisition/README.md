@@ -2,7 +2,7 @@
 
 **Status: NEXT after protocol v0.1 review.**
 
-The first protocol implementation candidate is now documented in [`../../../protocol/spec-v0.1.md`](../../../protocol/spec-v0.1.md), with golden byte fixtures and a Python reference decoder.
+The first protocol implementation candidate is documented in [`../../../protocol/spec-v0.1.md`](../../../protocol/spec-v0.1.md), with golden byte fixtures and a Python reference decoder.
 
 This directory will contain the transport-independent sensor acquisition firmware. It must reuse the validated sensor configuration/FIFO/timestamp behaviour without turning the diagnostic script into a production logger.
 
@@ -26,8 +26,9 @@ The first acquisition implementation should:
 2. drain complete timestamped IMU slots into `IMU_BATCH` records;
 3. preserve MAG and ToF observation/read brackets;
 4. emit raw `CLOCK_SYNC` observations rather than derived mapped timestamps;
-5. expose `STATUS` counters/backpressure;
-6. queue complete records before the USB transport adapter writes bytes;
-7. never print diagnostic text into the binary protocol stream.
+5. emit `STREAM_INFO` at startup, after relevant configuration changes and periodically so a host can recover session/config context;
+6. expose `STATUS` counters/backpressure;
+7. queue complete records before the USB transport adapter writes bytes;
+8. never print diagnostic text into the binary protocol stream.
 
-Before that firmware is called complete, define the deferred stream/config metadata record described in protocol v0.1.
+`STREAM_INFO.session_id` is deliberately ephemeral per boot/session; the reference firmware should not silently turn a stable Pico/chip identifier into a protocol tracking identifier.
