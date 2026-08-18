@@ -11,8 +11,12 @@ All notable project changes should be documented here once development moves int
 - Public Markdown build guide and living project plan.
 - Reference v0.5 validation log/summary.
 - Architecture/portability/calibration/protocol notes and initial ADRs.
+- Experimental Rangeweave wire protocol v0.1 specification: COBS framing, CRC16, sequence numbers and initial sensor/health records.
+- Dependency-light Python v0.1 reference decoder/encoder framing implementation.
+- Language-neutral golden byte fixtures plus corruption/resynchronisation tests.
+- ADRs for v0.1 stream framing and preservation of source clock domains.
 
 ### Current baseline
 
 - Sensor-stack validation phase complete on the first reference unit.
-- Next phase: transport-independent packet format + Pico acquisition firmware + Python capture/replay, followed early by Kotlin/Android conformance and ESP32-class portability testing.
+- Protocol/acquisition phase is now in progress; protocol v0.1 is an implementation candidate pending Pico acquisition testing and Kotlin/Android conformance.
