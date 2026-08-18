@@ -18,6 +18,10 @@ import rangeweave_protocol as rw
 def _jsonable(value):
     if is_dataclass(value):
         return {key: _jsonable(item) for key, item in asdict(value).items()}
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, bytes):
+        return {"hex": value.hex()}
     if isinstance(value, tuple):
         return [_jsonable(item) for item in value]
     if isinstance(value, list):
