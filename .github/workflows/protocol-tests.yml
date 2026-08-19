@@ -5,12 +5,14 @@ on:
     paths:
       - "host/python/**"
       - "protocol/**"
+      - "firmware/pico2w/acquisition/**"
       - "tests/**"
       - ".github/workflows/protocol-tests.yml"
   pull_request:
     paths:
       - "host/python/**"
       - "protocol/**"
+      - "firmware/pico2w/acquisition/**"
       - "tests/**"
       - ".github/workflows/protocol-tests.yml"
 
@@ -29,5 +31,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Run protocol conformance tests
+      - name: Run protocol and acquisition conformance tests
         run: python -m unittest discover -s tests -v
