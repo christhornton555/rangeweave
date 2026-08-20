@@ -15,6 +15,8 @@ The physical Pico 2 W reference producer has now passed steady-state live valida
 
 `probe_serial.py` is **not yet the canonical capture/replay layer**. It may optionally save raw bytes to `packets.bin`, but its role is validation rather than durable session management.
 
+`analyze_capture.py` treats ToF `mcu_ready_us` as the Pico software-observation time defined by the protocol. Individual observation intervals can therefore contain scheduler jitter; the tool reports net rate/period deficit rather than claiming that every long interval represents a skipped VL53L5CX frame.
+
 Example on Windows:
 
 ```powershell
