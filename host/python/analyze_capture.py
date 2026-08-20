@@ -35,20 +35,20 @@ def percentile(values, fraction):
     return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
 
 
-def print_us_stats(label, values):
+def print_stats(label, values, unit):
     if not values:
         print("  {}: no data".format(label))
         return
     print(
-        "  {}: min={:.1f} us median={:.1f} us mean={:.1f} us "
-        "p90={:.1f} us p99={:.1f} us max={:.1f} us".format(
+        "  {}: min={:.1f} {} median={:.1f} {} mean={:.1f} {} "
+        "p90={:.1f} {} p99={:.1f} {} max={:.1f} {}".format(
             label,
-            min(values),
-            statistics.median(values),
-            statistics.mean(values),
-            percentile(values, 0.90),
-            percentile(values, 0.99),
-            max(values),
+            min(values), unit,
+            statistics.median(values), unit,
+            statistics.mean(values), unit,
+            percentile(values, 0.90), unit,
+            percentile(values, 0.99), unit,
+            max(values), unit,
         )
     )
 
@@ -152,8 +152,8 @@ def main():
         print("  frames:        {}".format(len(tof_ready)))
         print("  ready span:    {:.6f} s".format(span_us / 1_000_000.0))
         print("  observed rate: {:.4f} Hz".format(observed_hz))
-        print_us_stats("ready interval", ready_intervals)
-        print_us_stats("get_data duration", tof_read_duration)
+        print_stats("ready interval", ready_intervals, "us")
+        print_stats("get_data duration", tof_read_duration, "us")
 
         if expected_tof_hz:
             period_us = 1_000_000.0 / expected_tof_hz
@@ -174,7 +174,7 @@ def main():
                 print("    {:2d}x: {}".format(multiple, multiple_histogram[multiple]))
             print("  inferred skipped sensor periods: {}".format(inferred_skipped_periods))
             if long_intervals:
-                print_us_stats("long ready intervals", long_intervals)
+                print_stats("long ready intervals", long_intervals, "us")
 
     print()
     print("IMU native timestamp cadence")
@@ -183,7 +183,7 @@ def main():
     else:
         imu_deltas = [b - a for a, b in zip(imu_ticks, imu_ticks[1:]) if b >= a]
         print("  samples:       {}".format(len(imu_ticks)))
-        print_us_stats("LSM tick delta (ticks, label only)", imu_deltas)
+        print_stats("LSM timestamp delta", imu_deltas, "ticks")
 
     if statuses:
         print()
