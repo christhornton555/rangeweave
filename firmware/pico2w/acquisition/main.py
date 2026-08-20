@@ -23,12 +23,14 @@ from rw_sensors import (
 from rw_transport_usb import FrameQueue, UsbCdcTransport
 from rw_timing import LsmTickExtender
 
-FIRMWARE_LABEL = b"rangeweave-pico2w-acq-0.1-exp1"
+FIRMWARE_LABEL = b"rangeweave-pico2w-acq-0.1-exp2"
 SOURCE_PROFILE = b"pico2w-lsm6dsox-lis3mdl-vl53l5cx-8x8-15hz"
 
 MAG_PERIOD_US = 100_000
 MAG_INITIAL_OFFSET_US = 5_000
-FIFO_SERVICE_PERIOD_US = 10_000
+# Match the cadence already validated by the v0.5 diagnostic. The hardware FIFO
+# is the timing buffer; polling it twice as often only increases Python/I2C overhead.
+FIFO_SERVICE_PERIOD_US = 20_000
 FIFO_MAX_RECORDS_PER_SERVICE = 192
 TOF_POLL_US = 5_000
 CLOCK_SYNC_PERIOD_US = 1_000_000
@@ -44,6 +46,9 @@ IMU_BATCH_SAMPLES = 4
 IMU_BATCH_MAX_LATENCY_US = 50_000
 FRAME_QUEUE_CAPACITY = 32
 USB_WRITE_CHUNK = 64
+# A single scheduler pass may drain several CDC chunks. This remains bounded so
+# sensor scheduling wins, but avoids the exp1 one-chunk-per-loop bottleneck.
+USB_WRITE_CHUNKS_PER_SERVICE = 4
 
 SLOT_GYRO = 0x01
 SLOT_ACCEL = 0x02
@@ -169,7 +174,10 @@ class Acquisition:
         self.tick_extender = LsmTickExtender()
         self.assembler = FifoSlotAssembler(self.tick_extender, self.counters)
         self.queue = FrameQueue(FRAME_QUEUE_CAPACITY)
-        self.transport = UsbCdcTransport(USB_WRITE_CHUNK)
+        self.transport = UsbCdcTransport(
+            USB_WRITE_CHUNK,
+            USB_WRITE_CHUNKS_PER_SERVICE,
+        )
 
         self.sequence = 0
         self.info_revision = 0
@@ -437,9 +445,9 @@ class Acquisition:
                 self.emit_stream_info()
                 next_info_us += STREAM_INFO_PERIOD_US
 
-            # One bounded transport service per loop. Sensor scheduling remains able to
-            # run while USB is temporarily not writable; queue overflow becomes an
-            # explicit sequence gap + STATUS counter instead of hidden timing damage.
+            # One bounded transport burst per scheduler pass. Each burst may write
+            # several 64-byte CDC chunks, enough to clear a multi-chunk ToF frame
+            # without allowing USB work to monopolise sensor scheduling.
             self.transport.service(self.queue)
 
             time.sleep_ms(1)
