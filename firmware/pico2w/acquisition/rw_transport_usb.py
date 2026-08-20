@@ -48,15 +48,29 @@ class FrameQueue:
 
 
 class UsbCdcTransport:
-    """Incremental, polling-first writer for the built-in USB CDC stream."""
+    """Incremental, polling-first writer for the built-in USB CDC stream.
 
-    def __init__(self, max_write_chunk=64):
-        try:
-            self.stream = sys.stdout.buffer
-        except AttributeError:
-            raise RuntimeError("MicroPython sys.stdout.buffer is required")
+    A scheduler pass may write several bounded chunks. The earlier one-chunk-per-pass
+    implementation could not keep up once sensor/I2C work made scheduler passes much
+    less frequent than the nominal 1 ms loop sleep.
+    """
 
+    def __init__(
+        self,
+        max_write_chunk=64,
+        max_chunks_per_service=4,
+        stream=None,
+        use_poll=True,
+    ):
+        if stream is None:
+            try:
+                stream = sys.stdout.buffer
+            except AttributeError:
+                raise RuntimeError("MicroPython sys.stdout.buffer is required")
+
+        self.stream = stream
         self.max_write_chunk = max_write_chunk
+        self.max_chunks_per_service = max_chunks_per_service
         self.current = None
         self.offset = 0
         self.write_errors = 0
@@ -64,7 +78,7 @@ class UsbCdcTransport:
         self._sync_pending = True
 
         self.poller = None
-        if select is not None:
+        if use_poll and select is not None:
             try:
                 poller = select.poll()
                 poller.register(self.stream, select.POLLOUT)
@@ -112,7 +126,7 @@ class UsbCdcTransport:
         self.bytes_written += written
         return start + written
 
-    def service(self, queue):
+    def _service_one_chunk(self, queue):
         # A leading zero delimiter discards any textual soft-reset/REPL bytes that
         # may have preceded main.py, so the first Rangeweave frame can start cleanly.
         if self._sync_pending:
@@ -143,3 +157,22 @@ class UsbCdcTransport:
             self.offset = 0
 
         return progressed
+
+    def service(self, queue):
+        """Drain up to max_chunks_per_service without blocking for writability.
+
+        The chunk budget keeps USB work bounded so sensor scheduling remains the
+        priority, while allowing one scheduler pass to drain a complete multi-chunk
+        ToF frame when the CDC endpoint has room.
+        """
+        progressed_any = False
+
+        for _ in range(self.max_chunks_per_service):
+            if not self._service_one_chunk(queue):
+                break
+            progressed_any = True
+
+            if not self._sync_pending and self.current is None and len(queue) == 0:
+                break
+
+        return progressed_any
