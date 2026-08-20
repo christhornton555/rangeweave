@@ -1,10 +1,10 @@
 # Pico 2 W acquisition firmware
 
-**Status: EXPERIMENTAL / first hardware-validation candidate.**
+**Status: EXPERIMENTAL / hardware validation in progress.**
 
 This directory contains the first Rangeweave acquisition producer for the validated Pico 2 W reference sensor stack. It is deliberately separate from [`../diagnostics/reproducible_sensor_stack.py`](../diagnostics/reproducible_sensor_stack.py): the diagnostic remains the reproduction/self-test tool, while this firmware emits the binary [Rangeweave protocol v0.1](../../../protocol/spec-v0.1.md) stream used by capture/replay software.
 
-This revision has passed protocol/logic tests under CPython, but **has not yet been validated on the physical Pico + sensor stack**. Do not treat it as a replacement for the v0.5 diagnostic baseline until the live validation procedure below passes.
+The protocol/packetizer path passes host-side conformance tests. The first physical acquisition run on the reference stack proved valid framing and clean sensor acquisition, and exposed a transport-service bottleneck that is being retested in `exp2` before this firmware is promoted from experimental status.
 
 ## Files
 
@@ -54,6 +54,7 @@ The reference configuration mirrors the validated diagnostic baseline:
 - VL53L5CX on I2C1, GP2/GP3, 1 MHz;
 - LSM6DSOX accel `0x48`, gyro `0x40`, BDU/IF_INC `0x44`;
 - FIFO accel/gyro BDR `0x44` and FIFO/timestamp mode `0x46`;
+- FIFO serviced on the validated 20 ms host cadence;
 - LIS3MDL control bytes `74 00 00 0c 40`;
 - VL53L5CX 8x8 at 15 Hz;
 - LIS3MDL address fixed at `0x1E` by `ADM -> 3V3`.
@@ -94,11 +95,46 @@ This is deliberate: transport backpressure must become observable data loss, not
 
 The first adapter writes binary frames to MicroPython's built-in USB CDC stdout stream in bounded chunks. It attempts non-blocking/polling-first writes when the runtime exposes `select.poll()` support.
 
+`exp1` allowed only one 64-byte write chunk per scheduler pass. Physical testing showed that sensor/I2C work makes scheduler passes much less frequent than the nominal 1 ms loop sleep, limiting sustained transport below the producer rate. `exp2` therefore allows a bounded burst of up to four 64-byte chunks per scheduler pass. This can clear a complete multi-chunk ToF record without allowing USB work to monopolise the acquisition scheduler.
+
 The first byte emitted by the adapter is a standalone `0x00` delimiter. This gives a Rangeweave receiver a clean framing boundary after any textual MicroPython soft-reset/startup bytes that may have appeared before `main.py` took over stdout.
 
 After successful initialization, **do not expect readable text in the Thonny Shell**. The stream is binary by design, and acquisition code must not mix `print()` diagnostics into it.
 
-## First hardware-validation procedure
+## First physical run: exp1 evidence
+
+Before the acquisition run, the frozen diagnostic again reached `SYSTEM READY: PASS` with aligned `1213/1213/1213` accel/gyro/timestamp FIFO records, exact 384-tick slot spacing, `120/120` magnetometer reads, 179 ToF frames at 14.906 fps and zero sensor/FIFO errors.
+
+The first 15-second Rangeweave acquisition measurement then produced:
+
+```text
+bad frames:  0
+seq gaps:    129
+CLOCK_SYNC:  12
+IMU_BATCH:   300
+MAG:         136
+STATUS:      14
+STREAM_INFO: 2
+TOF_GRID:    176
+```
+
+The last `STATUS` reported a saturated queue (`queue_high_water = 32`) and transport-backpressure flag, while FIFO/sensor error counters all remained zero. Across the measured window:
+
+```text
+frames_dropped:          +125
+imu_samples_dropped:     +296
+fifo_overruns:           +0
+fifo_structural_errors:  +0
+mag_errors:              +0
+tof_errors:              +0
+clock_sync_errors:       +0
+```
+
+This is classified as a **transport throughput failure, not a sensor-acquisition failure**. The near agreement between sequence gaps and dropped-frame delta also validates the intended loss-observability design: queue overflow became explicit packet loss instead of corrupting framing or hiding timing damage.
+
+`exp2` addresses this result with bounded multi-chunk USB draining and the validated 20 ms FIFO service cadence. No protocol field or sensor register configuration is changed by that fix.
+
+## Hardware-validation procedure
 
 1. First run the frozen diagnostic firmware and confirm the reference stack still reaches `SYSTEM READY: PASS`.
 2. In Thonny, copy these four support modules to the Pico root:
@@ -121,11 +157,11 @@ After successful initialization, **do not expect readable text in the Thonny She
    py host/python/probe_serial.py COM7 --warmup 3 --seconds 15 --output packets.bin
    ```
 
-The three-second warm-up deliberately ignores any queue backlog/drop counters accumulated while no host had the USB stream open. The measured window is what we use for the first steady-state judgement.
+The three-second warm-up deliberately ignores any queue backlog/drop counters accumulated while no host had the USB stream open. The measured window is what we use for the steady-state judgement.
 
 ### Initial pass criteria
 
-For the measured window, the first target is:
+For the measured window, the target is:
 
 - valid Rangeweave frames are received;
 - `bad frames = 0`;
@@ -133,7 +169,7 @@ For the measured window, the first target is:
 - `IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC`, `STATUS` and `STREAM_INFO` are all observed as expected for their rates;
 - deltas for `frames_dropped`, `imu_samples_dropped`, `fifo_overruns`, `fifo_structural_errors`, `mag_errors`, `tof_errors` and `clock_sync_errors` are all zero.
 
-Approximate healthy 15-second counts are expected to be on the order of ~375 `IMU_BATCH`, ~150 `MAG`, ~225 `TOF_GRID`, ~15 `CLOCK_SYNC`, ~15 `STATUS` and one or two `STREAM_INFO` records. These are sanity ranges, **not protocol requirements**; timing on the physical unit is the source of truth.
+Approximate healthy 15-second counts are expected to be on the order of ~375-380 `IMU_BATCH`, ~150 `MAG`, ~225 `TOF_GRID`, ~15 `CLOCK_SYNC`, ~15 `STATUS` and one or two `STREAM_INFO` records. These are sanity ranges, **not protocol requirements**; timing on the physical unit is the source of truth.
 
 If the probe exits non-zero, keep its summary plus the resulting `packets.bin` and return to the frozen diagnostic before changing sensor registers.
 
