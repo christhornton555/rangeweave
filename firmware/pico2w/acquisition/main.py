@@ -1,4 +1,4 @@
-"""Rangeweave Pico 2 W acquisition firmware, experimental v0.1.
+"""Rangeweave Pico 2 W acquisition firmware, hardware-validated v0.1 candidate.
 
 Successful operation produces binary Rangeweave protocol frames only. USB is merely the
 first transport adapter; sensor acquisition and packet semantics are kept independent.
@@ -23,7 +23,7 @@ from rw_sensors import (
 from rw_transport_usb import FrameQueue, UsbCdcTransport
 from rw_timing import LsmTickExtender
 
-FIRMWARE_LABEL = b"rangeweave-pico2w-acq-0.1-exp2"
+FIRMWARE_LABEL = b"rangeweave-pico2w-acq-0.1"
 SOURCE_PROFILE = b"pico2w-lsm6dsox-lis3mdl-vl53l5cx-8x8-15hz"
 
 MAG_PERIOD_US = 100_000
