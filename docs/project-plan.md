@@ -17,8 +17,9 @@ Develop a small, inexpensive, privacy-preserving sensing module that combines sp
 - Per-unit `INTERNAL_FREQ_FINE` discovery and rolling Pico↔LSM clock model; no hard-coded real ODR.
 - LIS3MDL address made deterministic at `0x1E` by tying ADM high.
 - Reference v0.5 reproducibility self-test: **SYSTEM READY: PASS**.
+- Pico Rangeweave v0.1 acquisition producer: lossless steady-state USB stream demonstrated on the reference unit with zero measured frame/sequence/drop/FIFO/sensor errors and VL53L5CX capture measured at 14.9955 Hz against a configured 15 Hz.
 
-The diagnostic firmware is now a baseline. The next firmware is an acquisition/transport implementation, not another sensor bring-up experiment.
+The diagnostic firmware remains the reproduction baseline. The acquisition producer is now hardware-validated on the reference unit; the next work is the canonical PC capture/replay layer rather than further sensor bring-up.
 
 ## Non-negotiable design principles
 
@@ -74,7 +75,7 @@ No host parser or mapping algorithm may depend on MicroPython objects, Pico GPIO
 
 ## Protocol and recording requirements
 
-Protocol v0.1 is now an **experimental implementation candidate**. Its normative byte-level specification lives in [`../protocol/spec-v0.1.md`](../protocol/spec-v0.1.md).
+Protocol v0.1 is now a **hardware-validated implementation candidate** on the Pico reference producer. Its normative byte-level specification lives in [`../protocol/spec-v0.1.md`](../protocol/spec-v0.1.md). Cross-language Kotlin/Android conformance remains outstanding before the protocol is treated as broadly stabilised.
 
 The protocol is binary, versioned, language-neutral, resynchronisable, sequence-numbered, explicitly little-endian and transport-agnostic. Firmware version, protocol version and calibration-schema version remain independent.
 
@@ -153,7 +154,7 @@ Use named frames (`tof_optical`, `imu_sensor`, `mag_sensor`, `device_body`, `wor
 | Phase | Status | Exit gate |
 |---|---|---|
 | 0. Sensor-stack validation | **DONE / BASELINE** | Fresh assembly can reach `SYSTEM READY: PASS` without per-unit hard-coded ODR. |
-| 1. Protocol + PC capture/replay | **IN PROGRESS** | Live and replayed streams decode identically; packet loss is detectable. |
+| 1. Protocol + PC capture/replay | **IN PROGRESS — protocol + Pico producer validated** | Live and replayed streams decode identically; packet loss is detectable. |
 | 1A. Android protocol smoke test | Next after protocol stabilises | Python and Kotlin decode identical golden fixtures. |
 | 1B. MCU portability spike | Early planned | ESP32-class synthetic packet source is indistinguishable at protocol level except metadata. |
 | 2. Raw viewer + 64-point projection | Planned | Flat wall produces expected sparse plane / known ranges. |
@@ -168,17 +169,17 @@ Use named frames (`tof_optical`, `imu_sensor`, `mag_sensor`, `device_body`, `wor
 
 ## Immediate work package
 
-Completed in the protocol v0.1 candidate:
+Completed in the protocol/Pico acquisition candidate:
 
 1. Freeze [`firmware/pico2w/diagnostics/reproducible_sensor_stack.py`](../firmware/pico2w/diagnostics/reproducible_sensor_stack.py) as the diagnostic baseline.
 2. Define binary framing and initial record semantics before writing the acquisition loop.
 3. Create byte-level golden fixtures for every initial v0.1 record type plus corruption/resynchronisation coverage.
 4. Implement a dependency-light Python reference decoder/stream parser.
+5. Implement and physically validate the Pico acquisition firmware using complete raw records, transport-independent packetization/queueing and USB CDC transport.
 
 Next:
 
-5. Implement Pico acquisition firmware using complete raw records and a transport-independent packetizer/queue.
-6. Implement USB receiver/recorder and replay adapter using the same stream decoder.
+6. Implement canonical USB receiver/recorder and replay adapter using the same stream decoder.
 7. Implement Android/Kotlin parser + USB smoke test while the protocol is still small.
 8. Record stationary, rotation-only, translation and simple scene datasets.
 9. Build raw viewer + first 64-point ToF projection.
@@ -234,11 +235,12 @@ Use short Architecture Decision Records (ADRs) for decisions such as transport i
 
 - The reference prototype can acquire sparse-ToF and inertial data together under the tested workload without the observed FIFO loss/error conditions.
 - The diagnostic firmware measures per-unit IMU timing instead of assuming the reference unit's real sample rate.
+- The Pico reference producer can emit a loss-detectable Rangeweave v0.1 byte stream over USB CDC without measured steady-state packet loss on the validated reference run.
 - The core sensor path does not require RGB imagery.
 
 ### Experimental now
 
-- Protocol v0.1 framing/records and Python reference decoding are implementation candidates backed by shared golden byte fixtures; they are not yet validated against live Pico acquisition firmware or Kotlin/Android.
+- Protocol v0.1 framing/records and Python reference decoding are backed by shared golden byte fixtures and live Pico acquisition, but Kotlin/Android conformance and broader multi-unit reproduction remain outstanding.
 
 ### Not yet supported
 

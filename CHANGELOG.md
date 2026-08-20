@@ -16,8 +16,12 @@ All notable project changes should be documented here once development moves int
 - Dependency-light Python v0.1 reference decoder/encoder framing implementation.
 - Language-neutral golden byte fixtures plus corruption/resynchronisation tests.
 - ADRs for v0.1 stream framing and preservation of source clock domains.
+- Experimental Pico 2 W acquisition producer split into sensor, timing, protocol and USB-transport modules.
+- Acquisition-side golden-frame conformance tests and LSM timestamp wrap/backlog regression tests.
+- `probe_serial.py` for the first live USB framing/sequence/health smoke test.
 
 ### Current baseline
 
 - Sensor-stack validation phase complete on the first reference unit.
-- Protocol/acquisition phase is now in progress; protocol v0.1 is an implementation candidate pending Pico acquisition testing and Kotlin/Android conformance.
+- Protocol v0.1 is merged as an implementation candidate.
+- Pico acquisition firmware is entering physical hardware validation; it is not yet a validated replacement for the v0.5 diagnostic baseline.
