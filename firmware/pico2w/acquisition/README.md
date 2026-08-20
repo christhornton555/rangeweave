@@ -1,10 +1,10 @@
 # Pico 2 W acquisition firmware
 
-**Status: EXPERIMENTAL / hardware validation in progress.**
+**Status: HARDWARE-VALIDATED v0.1 candidate.**
 
 This directory contains the first Rangeweave acquisition producer for the validated Pico 2 W reference sensor stack. It is deliberately separate from [`../diagnostics/reproducible_sensor_stack.py`](../diagnostics/reproducible_sensor_stack.py): the diagnostic remains the reproduction/self-test tool, while this firmware emits the binary [Rangeweave protocol v0.1](../../../protocol/spec-v0.1.md) stream used by capture/replay software.
 
-The protocol/packetizer path passes host-side conformance tests. The first physical acquisition run on the reference stack proved valid framing and clean sensor acquisition, and exposed a transport-service bottleneck that is being retested in `exp2` before this firmware is promoted from experimental status.
+The protocol/packetizer path passes host-side conformance tests, and the final physical validation run on the reference stack produced a lossless steady-state stream with zero sensor/FIFO errors and a measured VL53L5CX acquisition rate of 14.9955 Hz against a configured 15 Hz.
 
 ## Files
 
@@ -65,7 +65,7 @@ The reference configuration mirrors the validated diagnostic baseline:
 
 The validated Pimoroni MicroPython binding exposes full `distance` and `reflectance` arrays, but does not expose ST's per-zone `target_status` array. The current producer therefore emits `TOF_GRID` with field mask `0x0003` (distance + reflectance) rather than fabricating a validity field.
 
-The upstream ST result structure represents `distance_mm` as signed 16-bit values, while protocol v0.1 currently specifies its `DISTANCE_MM` field as uint16. This producer **does not silently wrap negative driver values**: if a negative/out-of-range distance is observed, that ToF frame is rejected and `tof_errors` increments. Live hardware validation will tell us whether this candidate-protocol edge case needs a v0.1 correction before the protocol is tagged stable.
+The upstream ST result structure represents `distance_mm` as signed 16-bit values, while protocol v0.1 currently specifies its `DISTANCE_MM` field as uint16. This producer **does not silently wrap negative driver values**: if a negative/out-of-range distance is observed, that ToF frame is rejected and `tof_errors` increments. No such value occurred in the reference validation runs, so this remains an explicit protocol edge case rather than a demonstrated failure mode.
 
 ## Timestamp handling
 
@@ -91,21 +91,25 @@ Complete encoded frames enter a fixed 32-frame queue before transport. Sequence 
 
 This is deliberate: transport backpressure must become observable data loss, not hidden sensor-timing damage.
 
-## USB transport behaviour
+## USB transport and packetizer behaviour
 
 The first adapter writes binary frames to MicroPython's built-in USB CDC stdout stream in bounded chunks. It attempts non-blocking/polling-first writes when the runtime exposes `select.poll()` support.
 
-`exp1` allowed only one 64-byte write chunk per scheduler pass. Physical testing showed that sensor/I2C work makes scheduler passes much less frequent than the nominal 1 ms loop sleep, limiting sustained transport below the producer rate. `exp2` therefore allows a bounded burst of up to four 64-byte chunks per scheduler pass. This can clear a complete multi-chunk ToF record without allowing USB work to monopolise the acquisition scheduler.
+`exp1` allowed only one 64-byte write chunk per scheduler pass. Physical testing showed that sensor/I2C work makes scheduler passes much less frequent than the nominal 1 ms loop sleep, limiting sustained transport below the producer rate. The validated implementation therefore allows a bounded burst of up to four 64-byte chunks per scheduler pass. This can clear a complete multi-chunk ToF record without allowing USB work to monopolise the acquisition scheduler.
+
+A second performance issue was found in the original reference-style Pico CRC implementation. Bit-at-a-time CRC-16/CCITT-FALSE required eight Python bit iterations per framed byte; under the full acquisition workload that consumed enough MCU time to reduce the observed ToF cadence. The validated implementation uses a 16-entry nibble lookup table, reducing the hot path to two lookup/shift steps per byte while producing exactly the same protocol bytes. The shared golden-vector tests protect that equivalence.
 
 The first byte emitted by the adapter is a standalone `0x00` delimiter. This gives a Rangeweave receiver a clean framing boundary after any textual MicroPython soft-reset/startup bytes that may have appeared before `main.py` took over stdout.
 
 After successful initialization, **do not expect readable text in the Thonny Shell**. The stream is binary by design, and acquisition code must not mix `print()` diagnostics into it.
 
-## First physical run: exp1 evidence
+## Physical validation evidence
 
-Before the acquisition run, the frozen diagnostic again reached `SYSTEM READY: PASS` with aligned `1213/1213/1213` accel/gyro/timestamp FIFO records, exact 384-tick slot spacing, `120/120` magnetometer reads, 179 ToF frames at 14.906 fps and zero sensor/FIFO errors.
+Before acquisition testing, the frozen diagnostic again reached `SYSTEM READY: PASS` with aligned `1213/1213/1213` accel/gyro/timestamp FIFO records, exact 384-tick slot spacing, `120/120` magnetometer reads, 179 ToF frames at 14.906 fps and zero sensor/FIFO errors.
 
-The first 15-second Rangeweave acquisition measurement then produced:
+### exp1 — transport bottleneck exposed
+
+The first 15-second Rangeweave acquisition measurement produced valid frames but saturated the 32-frame transport queue:
 
 ```text
 bad frames:  0
@@ -118,21 +122,60 @@ STREAM_INFO: 2
 TOF_GRID:    176
 ```
 
-The last `STATUS` reported a saturated queue (`queue_high_water = 32`) and transport-backpressure flag, while FIFO/sensor error counters all remained zero. Across the measured window:
+Across the measured window `frames_dropped` increased by 125 and `imu_samples_dropped` by 296, while FIFO/sensor error counters remained zero. This classified the result as a transport throughput failure, not a sensor-acquisition failure, and confirmed that queue overload became explicit packet loss rather than hidden corruption.
+
+### exp2 — lossless transport, reduced ToF cadence
+
+Allowing bounded four-chunk USB bursts and restoring the validated 20 ms FIFO service cadence produced a clean 15-second measured window:
 
 ```text
-frames_dropped:          +125
-imu_samples_dropped:     +296
-fifo_overruns:           +0
-fifo_structural_errors:  +0
-mag_errors:              +0
-tof_errors:              +0
-clock_sync_errors:       +0
+bad frames:                    0
+seq gaps:                      0
+frames_dropped delta:          0
+imu_samples_dropped delta:     0
+fifo_overruns delta:           0
+fifo_structural_errors delta:  0
+mag_errors delta:              0
+tof_errors delta:              0
+clock_sync_errors delta:       0
 ```
 
-This is classified as a **transport throughput failure, not a sensor-acquisition failure**. The near agreement between sequence gaps and dropped-frame delta also validates the intended loss-observability design: queue overflow became explicit packet loss instead of corrupting framing or hiding timing damage.
+The ToF stream was only about 13.1 Hz, however, despite `get_data()` itself remaining near 18.9 ms.
 
-`exp2` addresses this result with bounded multi-chunk USB draining and the validated 20 ms FIFO service cadence. No protocol field or sensor register configuration is changed by that fix.
+### exp3 — scheduler-order hypothesis rejected
+
+Moving FIFO service behind ToF polling did not improve the result; ToF fell to about 12.4 Hz while the stream remained lossless. This falsified scheduler priority as the main cause and retained the exp2 scheduler as the better baseline.
+
+### exp4 — hardware-validation pass
+
+Optimising only the Pico CRC hot path while keeping the exp2 scheduler/transport restored the expected ToF cadence. The 15-second live probe reported:
+
+```text
+bad frames:    0
+seq gaps:      0
+CLOCK_SYNC:    15
+IMU_BATCH:     382
+MAG:           150
+STATUS:        15
+STREAM_INFO:   1
+TOF_GRID:      225
+
+frames_dropped delta:          0
+imu_samples_dropped delta:     0
+fifo_overruns delta:           0
+fifo_structural_errors delta:  0
+mag_errors delta:              0
+tof_errors delta:              0
+clock_sync_errors delta:       0
+```
+
+The final status had `queue_high_water = 6`, `status_flags = 3`, and all cumulative acquisition/drop/error counters at zero.
+
+Offline analysis of the same raw capture found 271 ToF records spanning 18.005383 s, for an observed rate of **14.9955 Hz** against the configured 15 Hz. `get_data()` averaged 18.7566 ms, and every recorded IMU native timestamp delta was exactly 384 ticks.
+
+`mcu_ready_us` is a Pico software-observation timestamp, not a VL53L5CX hardware frame timestamp. Individual ready-observation intervals therefore contain scheduler jitter and must not be interpreted independently as proof of skipped sensor frames. The meaningful evidence is the net observed rate over the capture together with sequence and `STATUS` health data.
+
+This exp4 behaviour is now folded into canonical `main.py`/`rw_protocol.py`; temporary experimental harnesses are not part of the promoted implementation.
 
 ## Hardware-validation procedure
 
@@ -159,7 +202,7 @@ This is classified as a **transport throughput failure, not a sensor-acquisition
 
 The three-second warm-up deliberately ignores any queue backlog/drop counters accumulated while no host had the USB stream open. The measured window is what we use for the steady-state judgement.
 
-### Initial pass criteria
+### Pass criteria
 
 For the measured window, the target is:
 
@@ -169,9 +212,15 @@ For the measured window, the target is:
 - `IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC`, `STATUS` and `STREAM_INFO` are all observed as expected for their rates;
 - deltas for `frames_dropped`, `imu_samples_dropped`, `fifo_overruns`, `fifo_structural_errors`, `mag_errors`, `tof_errors` and `clock_sync_errors` are all zero.
 
-Approximate healthy 15-second counts are expected to be on the order of ~375-380 `IMU_BATCH`, ~150 `MAG`, ~225 `TOF_GRID`, ~15 `CLOCK_SYNC`, ~15 `STATUS` and one or two `STREAM_INFO` records. These are sanity ranges, **not protocol requirements**; timing on the physical unit is the source of truth.
+Approximate healthy 15-second counts are ~380 `IMU_BATCH`, ~150 `MAG`, ~225 `TOF_GRID`, ~15 `CLOCK_SYNC`, ~15 `STATUS` and one or two `STREAM_INFO` records. These are sanity ranges, **not protocol requirements**; timing on the physical unit is the source of truth.
 
 If the probe exits non-zero, keep its summary plus the resulting `packets.bin` and return to the frozen diagnostic before changing sensor registers.
+
+For offline timing inspection of a saved capture:
+
+```powershell
+py host/python/analyze_capture.py packets.bin
+```
 
 ## Getting the Pico back into development mode
 
