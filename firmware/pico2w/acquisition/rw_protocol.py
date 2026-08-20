@@ -43,16 +43,23 @@ STATUS_FLAG_CLOCK_SYNC_ACTIVE = 0x0002
 STATUS_FLAG_FIFO_OVERRUN_LATCHED = 0x0004
 STATUS_FLAG_TRANSPORT_BACKPRESSURE = 0x0008
 
+# 4-bit lookup table for CRC-16/CCITT-FALSE (poly 0x1021). A 16-entry
+# table keeps MCU memory cost small while reducing the hot path from eight
+# Python bit-iterations per byte to two nibble steps. Wire bytes are unchanged.
+_CRC16_NIBBLE = (
+    0x0000, 0x1021, 0x2042, 0x3063,
+    0x4084, 0x50A5, 0x60C6, 0x70E7,
+    0x8108, 0x9129, 0xA14A, 0xB16B,
+    0xC18C, 0xD1AD, 0xE1CE, 0xF1EF,
+)
+
 
 def crc16_ccitt_false(data):
     crc = 0xFFFF
     for byte in data:
         crc ^= byte << 8
-        for _ in range(8):
-            if crc & 0x8000:
-                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
-            else:
-                crc = (crc << 1) & 0xFFFF
+        crc = ((crc << 4) & 0xFFFF) ^ _CRC16_NIBBLE[(crc >> 12) & 0x0F]
+        crc = ((crc << 4) & 0xFFFF) ^ _CRC16_NIBBLE[(crc >> 12) & 0x0F]
     return crc
 
 
