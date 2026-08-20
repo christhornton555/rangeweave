@@ -142,39 +142,39 @@ def main():
         print("  {:14s} {}".format(name + ":", counts[name]))
 
     print()
-    print("ToF timing from MCU timestamps")
+    print("ToF timing from MCU observation timestamps")
     if len(tof_ready) < 2:
         print("  fewer than two TOF_GRID records")
     else:
         ready_intervals = [b - a for a, b in zip(tof_ready, tof_ready[1:])]
         span_us = tof_ready[-1] - tof_ready[0]
-        observed_hz = (len(tof_ready) - 1) * 1_000_000.0 / span_us if span_us > 0 else 0.0
+        observed_intervals = len(tof_ready) - 1
+        observed_hz = observed_intervals * 1_000_000.0 / span_us if span_us > 0 else 0.0
         print("  frames:        {}".format(len(tof_ready)))
         print("  ready span:    {:.6f} s".format(span_us / 1_000_000.0))
         print("  observed rate: {:.4f} Hz".format(observed_hz))
-        print_stats("ready interval", ready_intervals, "us")
+        print_stats("ready observation interval", ready_intervals, "us")
         print_stats("get_data duration", tof_read_duration, "us")
+        print("  note: mcu_ready_us is when Pico software observed data-ready, not a sensor frame timestamp")
 
         if expected_tof_hz:
             period_us = 1_000_000.0 / expected_tof_hz
-            print("  expected rate: {:.3f} Hz ({:.1f} us period)".format(expected_tof_hz, period_us))
+            expected_intervals = span_us / period_us
+            deficit = expected_intervals - observed_intervals
+            rate_error_pct = 100.0 * (observed_hz - expected_tof_hz) / expected_tof_hz
+            long_intervals = [value for value in ready_intervals if value > 1.5 * period_us]
 
-            multiple_histogram = Counter()
-            inferred_skipped_periods = 0
-            long_intervals = []
-            for interval in ready_intervals:
-                multiple = max(1, int(round(interval / period_us)))
-                multiple_histogram[multiple] += 1
-                inferred_skipped_periods += max(0, multiple - 1)
-                if interval > 1.5 * period_us:
-                    long_intervals.append(interval)
-
-            print("  interval multiples of nominal period:")
-            for multiple in sorted(multiple_histogram):
-                print("    {:2d}x: {}".format(multiple, multiple_histogram[multiple]))
-            print("  inferred skipped sensor periods: {}".format(inferred_skipped_periods))
+            print("  expected rate: {:.3f} Hz ({:.1f} us nominal period)".format(expected_tof_hz, period_us))
+            print("  rate error:    {:+.3f}%".format(rate_error_pct))
+            print("  net nominal-period deficit over span: {:.2f}".format(max(0.0, deficit)))
+            print("  long software-observation intervals (>1.5x nominal): {}".format(len(long_intervals)))
             if long_intervals:
-                print_stats("long ready intervals", long_intervals, "us")
+                print_stats("long observation intervals", long_intervals, "us")
+
+            print(
+                "  interpretation: interval jitter alone cannot prove skipped sensor frames; "
+                "use the net rate/period deficit plus STATUS/sequence evidence"
+            )
 
     print()
     print("IMU native timestamp cadence")
