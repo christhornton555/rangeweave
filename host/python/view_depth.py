@@ -1,21 +1,28 @@
-"""Raw, temporal and live-adjacent depth viewer for Rangeweave v0.1 captures.
+"""Raw and temporal depth viewer for Rangeweave v0.1 captures.
 
 The command-line summary and temporal timing helpers remain dependency-light.
 Matplotlib is imported only when a graphical figure, playback or video export is
-actually requested.
+actually requested. Graphical presentation is rotated 180 degrees from producer-native
+storage to match the physically observed sensor orientation; numeric output remains in
+producer-native row/column order.
 """
 
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import math
 from pathlib import Path
+import re
 import statistics
 import time
 
 import rangeweave_depth as depth
 import rangeweave_protocol as rw
 import rangeweave_temporal as temporal
+
+
+DISPLAY_ROTATION_DEGREES = 180
 
 
 def decode_text_tlv(info: rw.StreamInfo | None, tag: int) -> str | None:
@@ -97,6 +104,7 @@ def print_summary(analysis, *, selected_index, selected) -> None:
         print(f"  source:        {source_profile}")
     print(f"  metadata:      {metadata_status}")
     print("  validity rule: distance_mm > 0")
+    print(f"  display:       {DISPLAY_ROTATION_DEGREES}° presentation rotation")
     for error in analysis.metadata_errors:
         print(f"    metadata mismatch: {error}")
 
@@ -172,6 +180,21 @@ def import_matplotlib():
     return plt
 
 
+def rotate_grid_180(grid):
+    """Return a presentation-only 180-degree rotation of a 2D grid."""
+    return [list(reversed(row)) for row in reversed(grid)]
+
+
+def configure_rotated_axes(ax, rows: int, cols: int) -> None:
+    """Label a rotated display with the producer-native indices it contains."""
+    ax.set_xlabel("producer-native column")
+    ax.set_ylabel("producer-native row")
+    ax.set_xticks(range(cols))
+    ax.set_yticks(range(rows))
+    ax.set_xticklabels(list(reversed(range(cols))))
+    ax.set_yticklabels(list(reversed(range(rows))))
+
+
 def frame_distance_grid(analysis, frame):
     if frame.distance_mm is None:
         return [[float("nan")] * analysis.cols for _ in range(analysis.rows)]
@@ -205,17 +228,38 @@ def temporal_depth_bounds(analysis, requested_min, requested_max):
     return minimum, maximum
 
 
+def recording_label(input_path: Path) -> str:
+    """Derive a short safe label from a canonical capture path."""
+    path = Path(input_path)
+    name = path.parent.name if path.name == "packets.bin" else path.name
+    match = re.match(r"^capture_\d{8}_\d{6}Z(?:_(.*))?$", name)
+    if match:
+        name = match.group(1) or "rangeweave-depth"
+    elif path.is_file():
+        name = path.stem
+    safe = "".join(ch if ch.isalnum() or ch in "-_." else "-" for ch in name)
+    safe = safe.strip("-._")
+    return safe or "rangeweave-depth"
+
+
+def default_recording_path(analysis, fps: float, *, now=None) -> Path:
+    """Return recordings/YYYYMMDD_HHMMSS_<capture-label>-<fps>fps.mp4."""
+    moment = datetime.now() if now is None else now
+    stamp = moment.strftime("%Y%m%d_%H%M%S")
+    label = recording_label(analysis.input_path)
+    fps_text = f"{float(fps):g}"
+    return Path("recordings") / f"{stamp}_{label}-{fps_text}fps.mp4"
+
+
 def add_grid_plot(fig, position, grid, title, value_format) -> None:
     ax = fig.add_subplot(2, 3, position)
-    image = ax.imshow(grid, interpolation="nearest", origin="upper")
+    display_grid = rotate_grid_180(grid)
+    image = ax.imshow(display_grid, interpolation="nearest", origin="upper")
     ax.set_title(title)
-    ax.set_xlabel("producer-native column")
-    ax.set_ylabel("producer-native row")
-    ax.set_xticks(range(len(grid[0])))
-    ax.set_yticks(range(len(grid)))
-    finite = [float(v) for row in grid for v in row if math.isfinite(float(v))]
+    configure_rotated_axes(ax, len(grid), len(grid[0]))
+    finite = [float(v) for row in display_grid for v in row if math.isfinite(float(v))]
     midpoint = statistics.median(finite) if finite else 0.0
-    for r, row in enumerate(grid):
+    for r, row in enumerate(display_grid):
         for c, raw in enumerate(row):
             value = float(raw)
             label = format(value, value_format) if math.isfinite(value) else "—"
@@ -229,7 +273,10 @@ def add_grid_plot(fig, position, grid, title, value_format) -> None:
 def build_figure(analysis, selected):
     plt = import_matplotlib()
     fig = plt.figure(figsize=(16, 9))
-    fig.suptitle(f"Rangeweave raw depth/health viewer — {analysis.input_path.name}")
+    fig.suptitle(
+        f"Rangeweave raw depth/health viewer — {analysis.input_path.name} "
+        f"(display rotated {DISPLAY_ROTATION_DEGREES}°)"
+    )
     add_grid_plot(fig, 1, frame_distance_grid(analysis, selected), "Selected distance (mm)", ".0f")
     add_grid_plot(fig, 2, depth.as_rows(analysis.distance.mean, analysis.rows, analysis.cols), "Valid-only mean distance (mm)", ".1f")
     add_grid_plot(fig, 3, depth.as_rows(analysis.distance.stddev, analysis.rows, analysis.cols), "Valid-only population σ (mm)", ".1f")
@@ -253,8 +300,11 @@ def build_figure(analysis, selected):
 def build_temporal_figure(analysis, *, min_mm, max_mm, controls=True):
     plt = import_matplotlib()
     fig, ax = plt.subplots(figsize=(8, 8))
-    fig.suptitle(f"Rangeweave temporal depth — {analysis.input_path.name}")
-    grid = frame_distance_grid(analysis, analysis.tof_frames[0])
+    fig.suptitle(
+        f"Rangeweave temporal depth — {analysis.input_path.name} "
+        f"(display rotated {DISPLAY_ROTATION_DEGREES}°)"
+    )
+    grid = rotate_grid_180(frame_distance_grid(analysis, analysis.tof_frames[0]))
     image = ax.imshow(
         grid,
         interpolation="nearest",
@@ -262,10 +312,7 @@ def build_temporal_figure(analysis, *, min_mm, max_mm, controls=True):
         vmin=min_mm,
         vmax=max_mm,
     )
-    ax.set_xlabel("producer-native column")
-    ax.set_ylabel("producer-native row")
-    ax.set_xticks(range(analysis.cols))
-    ax.set_yticks(range(analysis.rows))
+    configure_rotated_axes(ax, analysis.rows, analysis.cols)
     colorbar = fig.colorbar(image, ax=ax, shrink=0.82)
     colorbar.set_label("distance (mm)")
     status = fig.text(0.5, 0.045, "", ha="center")
@@ -283,7 +330,7 @@ def build_temporal_figure(analysis, *, min_mm, max_mm, controls=True):
 
 def update_temporal_frame(analysis, image, status, source_index, times):
     frame = analysis.tof_frames[source_index]
-    image.set_data(frame_distance_grid(analysis, frame))
+    image.set_data(rotate_grid_180(frame_distance_grid(analysis, frame)))
     status.set_text(
         "frame {}/{} | t={:.3f} s | MCU ready={} us".format(
             source_index,
@@ -304,12 +351,7 @@ def play_capture(analysis, *, min_mm, max_mm) -> None:
         controls=True,
     )
 
-    state = {
-        "index": 0,
-        "paused": False,
-        "quit": False,
-        "retime": True,
-    }
+    state = {"index": 0, "paused": False, "quit": False, "retime": True}
 
     def render(index):
         state["index"] = max(0, min(int(index), len(analysis.tof_frames) - 1))
@@ -346,26 +388,21 @@ def play_capture(analysis, *, min_mm, max_mm) -> None:
     deadline = time.monotonic()
     while not state["quit"] and plt.fignum_exists(fig.number):
         index = state["index"]
-
         if state["paused"]:
             plt.pause(0.02)
             continue
-
         if index >= len(analysis.tof_frames) - 1:
             state["paused"] = True
             plt.pause(0.02)
             continue
-
         if state["retime"]:
             delay = max(0.0, times[index + 1] - times[index])
             deadline = time.monotonic() + delay
             state["retime"] = False
-
         remaining = deadline - time.monotonic()
         if remaining > 0.0:
             plt.pause(min(0.02, remaining))
             continue
-
         render(index + 1)
 
     if plt.fignum_exists(fig.number):
@@ -394,11 +431,13 @@ def export_mp4(analysis, output_path, *, min_mm, max_mm, fps=None) -> float:
     export_fps = temporal.suggested_export_fps(analysis.tof_frames) if fps is None else float(fps)
     schedule = temporal.cfr_source_indices(analysis.tof_frames, export_fps)
     times = temporal.relative_ready_times_s(analysis.tof_frames)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     writer = FFMpegWriter(
         fps=export_fps,
         metadata={
             "title": "Rangeweave ToF depth",
-            "comment": "producer-native 8x8 depth; nearest-neighbour rendering",
+            "comment": "producer-native 8x8 depth; 180-degree presentation rotation; nearest-neighbour rendering",
         },
     )
 
@@ -419,19 +458,30 @@ def main() -> int:
     parser.add_argument("--save", default=None, help="save static viewer figure to this path")
     parser.add_argument("--no-show", action="store_true", help="do not open the static Matplotlib window")
     parser.add_argument("--play", action="store_true", help="replay ToF frames using recorded MCU-ready timing")
-    parser.add_argument("--export-mp4", default=None, help="export timestamp-aware ToF playback to an MP4 file")
+    parser.add_argument(
+        "--export-mp4",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="PATH",
+        help=(
+            "export timestamp-aware ToF playback to MP4; omit PATH to write a "
+            "timestamped file under recordings/"
+        ),
+    )
     parser.add_argument("--fps", type=float, default=None, help="constant output FPS for --export-mp4 (default: recorded cadence)")
     parser.add_argument("--min-mm", type=float, default=None, help="fixed temporal depth scale minimum; default is capture minimum")
     parser.add_argument("--max-mm", type=float, default=None, help="fixed temporal depth scale maximum; default is capture maximum")
     args = parser.parse_args()
 
-    if args.summary_only and (args.save or args.play or args.export_mp4):
+    export_requested = args.export_mp4 is not None
+    if args.summary_only and (args.save or args.play or export_requested):
         parser.error("--summary-only cannot be combined with graphical/output modes")
-    if args.play and (args.save or args.export_mp4 or args.no_show):
+    if args.play and (args.save or export_requested or args.no_show):
         parser.error("--play cannot be combined with --save, --export-mp4 or --no-show")
-    if args.export_mp4 and (args.save or args.no_show):
+    if export_requested and (args.save or args.no_show):
         parser.error("--export-mp4 cannot be combined with --save or --no-show")
-    if args.fps is not None and not args.export_mp4:
+    if args.fps is not None and not export_requested:
         parser.error("--fps is only valid with --export-mp4")
     if args.fps is not None and (not math.isfinite(args.fps) or args.fps <= 0.0):
         parser.error("--fps must be greater than zero")
@@ -443,17 +493,12 @@ def main() -> int:
         parser.error(str(exc))
 
     print_summary(analysis, selected_index=selected_index, selected=selected)
-
     if args.summary_only:
         return 0
 
-    if args.play or args.export_mp4:
+    if args.play or export_requested:
         try:
-            min_mm, max_mm = temporal_depth_bounds(
-                analysis,
-                args.min_mm,
-                args.max_mm,
-            )
+            min_mm, max_mm = temporal_depth_bounds(analysis, args.min_mm, args.max_mm)
         except depth.DepthAnalysisError as exc:
             parser.error(str(exc))
 
@@ -467,14 +512,23 @@ def main() -> int:
                 parser.error(str(exc))
             return 0
 
-        output_path = Path(args.export_mp4)
+        export_fps = (
+            temporal.suggested_export_fps(analysis.tof_frames)
+            if args.fps is None
+            else float(args.fps)
+        )
+        output_path = (
+            Path(args.export_mp4)
+            if args.export_mp4
+            else default_recording_path(analysis, export_fps)
+        )
         try:
-            export_fps = export_mp4(
+            export_mp4(
                 analysis,
                 output_path,
                 min_mm=min_mm,
                 max_mm=max_mm,
-                fps=args.fps,
+                fps=export_fps,
             )
         except (OSError, RuntimeError, temporal.TemporalViewError) as exc:
             parser.error(str(exc))
