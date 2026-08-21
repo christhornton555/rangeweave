@@ -1,5 +1,6 @@
 """Tests for Rangeweave temporal playback and live-view plumbing."""
 
+from datetime import datetime
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -20,6 +21,7 @@ import rangeweave_capture as cap
 import rangeweave_live_view as live
 import rangeweave_protocol as rw
 import rangeweave_temporal as temporal
+import view_depth
 
 
 def frame_at(ready_us):
@@ -72,6 +74,29 @@ class TemporalTimingTests(unittest.TestCase):
     def test_bad_export_fps_is_rejected(self):
         with self.assertRaises(temporal.TemporalViewError):
             temporal.cfr_source_indices([frame_at(0)], 0.0)
+
+
+class PresentationConventionTests(unittest.TestCase):
+    def test_graphical_grid_is_rotated_180_degrees(self):
+        producer = [[1, 2], [3, 4]]
+        expected = [[4, 3], [2, 1]]
+        self.assertEqual(view_depth.rotate_grid_180(producer), expected)
+        self.assertEqual(live.rotate_grid_180(producer), expected)
+        self.assertEqual(live._render_grid((1, 2, 3, 4), 2, 2), expected)
+
+    def test_default_recording_path_is_ignored_dir_and_timestamped(self):
+        analysis = SimpleNamespace(
+            input_path=Path("captures/capture_20260821_174500Z_live-view-test")
+        )
+        path = view_depth.default_recording_path(
+            analysis,
+            30.0,
+            now=datetime(2026, 8, 21, 23, 15, 5),
+        )
+        self.assertEqual(
+            path,
+            Path("recordings/20260821_231505_live-view-test-30fps.mp4"),
+        )
 
 
 class LatestFrameQueueTests(unittest.TestCase):
