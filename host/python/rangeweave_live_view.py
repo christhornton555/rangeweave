@@ -3,6 +3,9 @@
 The serial recorder owns acquisition. Visualization runs in a separate spawned process
 and receives only the latest decoded ToF frame through a size-1 queue, so stale display
 updates may be dropped without ever dropping bytes from packets.bin.
+
+The graphical presentation is rotated 180 degrees from producer-native storage to match
+the physically observed sensor orientation. Raw capture ordering is unchanged.
 """
 
 from __future__ import annotations
@@ -11,6 +14,9 @@ import importlib.util
 import multiprocessing
 from queue import Empty, Full
 import sys
+
+
+DISPLAY_ROTATION_DEGREES = 180
 
 
 def replace_latest(queue, item) -> bool:
@@ -33,15 +39,30 @@ def replace_latest(queue, item) -> bool:
         return False
 
 
+def rotate_grid_180(grid):
+    """Return a presentation-only 180-degree rotation of a 2D grid."""
+    return [list(reversed(row)) for row in reversed(grid)]
+
+
 def _render_grid(distances, rows, cols):
     values = iter(distances)
-    return [
+    producer_grid = [
         [
             float(value) if int(value) > 0 else float("nan")
             for value in (next(values) for _ in range(cols))
         ]
         for _ in range(rows)
     ]
+    return rotate_grid_180(producer_grid)
+
+
+def _configure_axes(ax, rows: int, cols: int) -> None:
+    ax.set_xlabel("producer-native column")
+    ax.set_ylabel("producer-native row")
+    ax.set_xticks(range(cols))
+    ax.set_yticks(range(rows))
+    ax.set_xticklabels(list(reversed(range(cols))))
+    ax.set_yticklabels(list(reversed(range(rows))))
 
 
 def _viewer_process(queue, min_mm: float, max_mm: float) -> None:
@@ -53,9 +74,11 @@ def _viewer_process(queue, min_mm: float, max_mm: float) -> None:
 
     plt.ion()
     fig, ax = plt.subplots(figsize=(7, 7))
-    fig.suptitle("Rangeweave live ToF depth")
-    ax.set_xlabel("producer-native column")
-    ax.set_ylabel("producer-native row")
+    fig.suptitle(
+        "Rangeweave live ToF depth (display rotated {}°)".format(
+            DISPLAY_ROTATION_DEGREES
+        )
+    )
     status = fig.text(0.5, 0.02, "waiting for TOF_GRID...", ha="center")
 
     image = None
@@ -83,10 +106,7 @@ def _viewer_process(queue, min_mm: float, max_mm: float) -> None:
 
             if image is None or shape != current_shape:
                 ax.clear()
-                ax.set_xlabel("producer-native column")
-                ax.set_ylabel("producer-native row")
-                ax.set_xticks(range(cols))
-                ax.set_yticks(range(rows))
+                _configure_axes(ax, rows, cols)
                 image = ax.imshow(
                     grid,
                     origin="upper",
