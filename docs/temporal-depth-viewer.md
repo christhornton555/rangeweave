@@ -20,6 +20,14 @@ The Matplotlib window runs in a separate spawned process. The capture process of
 
 Closing the live window does not stop the capture.
 
+## Presentation orientation
+
+Physical validation showed that the first graphical viewer presented the ToF field rotated by 180 degrees. Graphical static views, live viewing, recorded playback and MP4 export now apply a **180-degree presentation rotation**.
+
+This is deliberately a display transform only. `packets.bin`, decoded `TOF_GRID` tuples, terminal matrix output, statistics and plane fitting remain in producer-native row/column order. Rotated plots keep producer-native row/column labels so it remains possible to identify the underlying zone represented by each displayed cell.
+
+This does **not** yet define `tof_optical` axes or claim a final physical top/left convention. Those semantics remain deferred until the explicit zone-orientation experiment and coordinate-frame work.
+
 ## Live view
 
 Install Matplotlib if needed:
@@ -70,21 +78,37 @@ Playback rejects a ToF timeline whose MCU-ready timestamps move backwards rather
 
 ## MP4 export
 
-MP4 export requires both Matplotlib and an `ffmpeg` executable available on `PATH`:
+MP4 export requires both Matplotlib and an `ffmpeg` executable available on `PATH`.
+
+For normal test recordings, omit the output path:
 
 ```powershell
-py host/python/view_depth.py <capture> --export-mp4 hand-depth.mp4
+py host/python/view_depth.py <capture> --export-mp4 --fps 30
 ```
 
-By default the exporter chooses a practical constant output frame rate from the median recorded ToF interval (normally 15 fps for the current producer). Override it explicitly if needed:
+The exporter creates `recordings/` if needed and writes a filename using:
+
+```text
+recordings/YYYYMMDD_HHMMSS_<capture-label>-<fps>fps.mp4
+```
+
+For example:
+
+```text
+recordings/20260821_231505_live-view-test-30fps.mp4
+```
+
+`recordings/` is intentionally ignored by Git. An explicit output path is still supported when required:
 
 ```powershell
-py host/python/view_depth.py <capture> --export-mp4 hand-depth.mp4 --fps 30
+py host/python/view_depth.py <capture> --export-mp4 other/path/example.mp4 --fps 30
 ```
+
+If `--fps` is omitted, the exporter chooses a practical constant output frame rate from the median recorded ToF interval (normally 15 fps for the current producer).
 
 MP4 itself is constant-frame-rate, but the exporter does **not** compress real acquisition gaps. At each output timestamp it uses the latest source ToF frame whose recorded `mcu_ready_us` is at or before that time. A long acquisition interval therefore appears as a held image in the video.
 
-The export uses nearest-neighbour rendering and the same fixed depth scale as interactive playback.
+The export uses nearest-neighbour rendering, the same fixed depth scale as interactive playback and the same 180-degree presentation transform.
 
 ## Dependency boundary
 
@@ -98,7 +122,7 @@ The raw protocol and capture formats are unchanged by this work.
 
 This viewer intentionally does not yet add:
 
-- physical top/left interpretation of producer-native zone order;
+- final physical top/left interpretation of producer-native zone order;
 - calibrated zone-ray projection;
 - 3D point clouds;
 - IMU orientation overlays or motion compensation;
