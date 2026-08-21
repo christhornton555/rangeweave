@@ -128,15 +128,29 @@ py host/python/view_depth.py <capture> --play
 
 Playback controls are Space for pause/resume, Left/Right for frame stepping, Home/End and Esc. The depth colour scale remains fixed for the entire playback and can be overridden with `--min-mm` / `--max-mm`.
 
-MP4 export uses nearest-neighbour depth rendering and maps the recorded timestamps onto a constant-frame-rate video. Real acquisition gaps become held frames rather than being silently compressed:
+Physical validation showed that the original graphical presentation was rotated by 180 degrees. Static plots, live view, playback and MP4 output now apply a presentation-only 180-degree rotation while raw packet order, terminal matrices and analysis remain producer-native.
+
+MP4 export uses nearest-neighbour depth rendering and maps the recorded timestamps onto a constant-frame-rate video. Real acquisition gaps become held frames rather than being silently compressed. For normal test recordings, omit the path and the viewer creates a timestamped file under the Git-ignored `recordings/` directory:
 
 ```powershell
-py host/python/view_depth.py <capture> --export-mp4 depth.mp4
+py host/python/view_depth.py <capture> --export-mp4 --fps 30
+```
+
+The automatic filename convention is:
+
+```text
+recordings/YYYYMMDD_HHMMSS_<capture-label>-<fps>fps.mp4
+```
+
+An explicit path remains supported when needed:
+
+```powershell
+py host/python/view_depth.py <capture> --export-mp4 other/path/depth.mp4 --fps 30
 ```
 
 MP4 export requires an `ffmpeg` executable on `PATH`. The default FPS is derived from the median recorded ToF interval; use `--fps` to override it.
 
-See [`../../docs/temporal-depth-viewer.md`](../../docs/temporal-depth-viewer.md) for the timing and non-blocking acquisition contract.
+See [`../../docs/temporal-depth-viewer.md`](../../docs/temporal-depth-viewer.md) for the timing, display-orientation and non-blocking acquisition contract.
 
 ## Validation utilities
 
@@ -153,7 +167,7 @@ py host/python/analyze_capture.py packets.bin
 
 ## Next
 
-1. physically validate live display responsiveness and recorded playback/MP4 export against the moving-hand capture;
+1. confirm the 180-degree presentation correction with one short playback/live sanity check, then merge the live/temporal viewer increment;
 2. freeze coordinate-frame and zone-index conventions before merging any 64-point projection code;
 3. add the Kotlin/Android protocol-parity smoke test using the shared golden fixtures;
 4. implement calibrated 8x8-to-64-point projection;
