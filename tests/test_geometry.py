@@ -12,6 +12,7 @@ if str(HOST_PYTHON) not in sys.path:
     sys.path.insert(0, str(HOST_PYTHON))
 
 import rangeweave_geometry as geometry
+import view_point_cloud as point_view
 
 
 class ZoneMappingTests(unittest.TestCase):
@@ -105,6 +106,32 @@ class ProjectionTests(unittest.TestCase):
             with self.subTest(bad=bad):
                 with self.assertRaises(geometry.GeometryError):
                     geometry.project_axial_distance_mm(0, bad)
+
+
+class PointCloudViewerPolicyTests(unittest.TestCase):
+    @staticmethod
+    def point(z):
+        return geometry.Point3(x_mm=0.0, y_mm=0.0, z_mm=float(z))
+
+    def test_connected_runs_break_at_depth_discontinuity(self):
+        points = [self.point(300), self.point(320), self.point(850), self.point(870)]
+        runs = point_view.connected_runs(points, 150)
+        self.assertEqual([[point.z_mm for point in run] for run in runs], [[300.0, 320.0], [850.0, 870.0]])
+
+    def test_connected_runs_break_at_invalid_zone(self):
+        points = [self.point(300), self.point(320), None, self.point(330), self.point(340)]
+        runs = point_view.connected_runs(points, 150)
+        self.assertEqual([[point.z_mm for point in run] for run in runs], [[300.0, 320.0], [330.0, 340.0]])
+
+    def test_singletons_are_not_drawn_as_mesh_edges(self):
+        points = [self.point(300), self.point(900)]
+        self.assertEqual(point_view.connected_runs(points, 150), [])
+
+    def test_non_positive_link_threshold_is_rejected(self):
+        for threshold in (0, -1):
+            with self.subTest(threshold=threshold):
+                with self.assertRaises(ValueError):
+                    point_view.connected_runs([self.point(300), self.point(310)], threshold)
 
 
 if __name__ == "__main__":
