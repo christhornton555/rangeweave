@@ -113,6 +113,35 @@ ST recommends checking `target_status`; for clean object edges, the ST guidance 
 
 Consequently the first point-cloud projection is geometrically useful but cannot yet perform ST status-based quality filtering. Adding target status to the reference producer is the natural next acquisition refinement.
 
+## Point-cloud viewer policy
+
+[`../host/python/view_point_cloud.py`](../host/python/view_point_cloud.py) is a diagnostic frontend, not a meshing algorithm.
+
+A real foreground/background boundary can put neighbouring 8x8 zones hundreds of millimetres apart in Z. Connecting those neighbours unconditionally draws fictitious surfaces across empty space. The viewer therefore only draws a row/column mesh edge while the neighbouring projected points differ by no more than a configurable axial-depth threshold.
+
+The default is:
+
+```text
+max_link_dz_mm = 150
+```
+
+Override it for a particular scene with:
+
+```powershell
+py host/python/view_point_cloud.py <capture> --max-link-dz-mm 100
+```
+
+This threshold affects presentation only. It does not remove, alter, interpolate or reclassify any projected point.
+
+The graphical figure contains two complementary views:
+
+1. a perspective 3D XYZ view whose grid lines break at invalid zones and large Z discontinuities;
+2. a front-on X/Y view coloured by axial Z.
+
+The front-on plot deliberately displays `+Y` downward so its image orientation matches the frozen `tof_optical` scene convention and the physically validated ToF presentation.
+
+This front-on diagnostic is useful for checking whether a sharp physical feature, such as a diagonal foreground strip, appears with the correct orientation after producer-zone mapping and optical projection.
+
 ## Code boundary
 
 [`../host/python/rangeweave_geometry.py`](../host/python/rangeweave_geometry.py) is standard-library only and provides:
