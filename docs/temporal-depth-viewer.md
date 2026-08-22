@@ -1,8 +1,8 @@
 # Live and temporal depth viewer
 
-**Status: Phase 2 implementation candidate.**
+**Status: Phase 2 implementation validated.**
 
-This increment extends the raw 2D Rangeweave viewer with temporal playback, MP4 export and a live ToF display. It remains entirely in **producer-native `TOF_GRID` row/column space**: no optical-axis convention, calibrated zone rays, 3D projection or IMU/ToF extrinsics are introduced here.
+This increment extends the raw 2D Rangeweave viewer with temporal playback, MP4 export and a live ToF display. Capture and analysis remain in **producer-native `TOF_GRID` row/column space**; graphical presentation uses the physically validated orientation documented in [`tof-zone-orientation.md`](tof-zone-orientation.md).
 
 ## Design rule: capture stays authoritative
 
@@ -22,11 +22,20 @@ Closing the live window does not stop the capture.
 
 ## Presentation orientation
 
-Physical validation showed that the first graphical viewer presented the ToF field rotated by 180 degrees. Graphical static views, live viewing, recorded playback and MP4 export now apply a **180-degree presentation rotation**.
+Physical validation established that producer-native ordering is rotated 180 degrees relative to the physically upright sensor image:
 
-This is deliberately a display transform only. `packets.bin`, decoded `TOF_GRID` tuples, terminal matrix output, statistics and plane fitting remain in producer-native row/column order. Rotated plots keep producer-native row/column labels so it remains possible to identify the underlying zone represented by each displayed cell.
+```text
+physical upper-left   -> producer r07c07
+physical upper-right  -> producer r07c00
+physical lower-left   -> producer r00c07
+physical lower-right  -> producer r00c00
+```
 
-This does **not** yet define `tof_optical` axes or claim a final physical top/left convention. Those semantics remain deferred until the explicit zone-orientation experiment and coordinate-frame work.
+Graphical static views, live viewing, recorded playback and MP4 export therefore apply a **180-degree presentation rotation**.
+
+This remains a display transform only. `packets.bin`, decoded `TOF_GRID` tuples, terminal matrix output, statistics and plane fitting remain in producer-native row/column order. Rotated plots keep producer-native row/column labels so it remains possible to identify the underlying zone represented by each displayed cell.
+
+The corresponding `tof_optical` convention is now frozen in [`coordinate-frames.md`](coordinate-frames.md): right-handed, `+X` image-right, `+Y` image-down and `+Z` forward into the scene. Per-zone ray angles and calibrated optical geometry remain separate work.
 
 ## Live view
 
@@ -120,13 +129,12 @@ The raw protocol and capture formats are unchanged by this work.
 
 ## Deferred
 
-This viewer intentionally does not yet add:
+This viewer intentionally does not add:
 
-- final physical top/left interpretation of producer-native zone order;
 - calibrated zone-ray projection;
 - 3D point clouds;
 - IMU orientation overlays or motion compensation;
 - IMU/ToF assembly extrinsics;
 - smoothing, interpolation or segmentation as acquisition semantics.
 
-Those should build on the canonical raw stream and the visualization tools established here.
+Those should build on the canonical raw stream, the validated zone orientation and the visualization tools established here.

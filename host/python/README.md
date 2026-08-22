@@ -1,6 +1,6 @@
 # Python reference host
 
-**Status: protocol, Pico acquisition, canonical capture/replay and raw depth/health analysis validated; live/temporal depth viewer candidate added.**
+**Status: protocol, Pico acquisition, canonical capture/replay, raw depth/health analysis and live/temporal depth viewing validated; ToF zone orientation and optical axes frozen.**
 
 The protocol/capture boundary is deliberately dependency-light. Scientific/3D libraries can be added later behind project-owned interfaces without becoming wire-format dependencies.
 
@@ -70,7 +70,7 @@ py host/python/replay.py captures/capture_YYYYMMDD_HHMMSSZ_stationary --strict
 
 ## Raw depth / health viewer
 
-The first viewer remains in protocol-native 2D zone space. It does **not** yet project points into `tof_optical` or assume that producer-native row/column indices correspond to physical top/left.
+The raw depth path remains in protocol-native 2D zone space and does not yet project ranges into 3D points. Producer-native row/column ordering is retained in capture, analysis and terminal output.
 
 The standard-library analysis core treats `distance_mm == 0` as an invalid/sentinel distance for current v0.1 captures. It reports per-zone valid/invalid counts, computes valid-only distance statistics, excludes matching reflectance samples when distance is invalid, and fits a least-squares plane to the per-zone mean distance as a spatial diagnostic. Raw protocol decoding remains unchanged.
 
@@ -128,7 +128,18 @@ py host/python/view_depth.py <capture> --play
 
 Playback controls are Space for pause/resume, Left/Right for frame stepping, Home/End and Esc. The depth colour scale remains fixed for the entire playback and can be overridden with `--min-mm` / `--max-mm`.
 
-Physical validation showed that the original graphical presentation was rotated by 180 degrees. Static plots, live view, playback and MP4 output now apply a presentation-only 180-degree rotation while raw packet order, terminal matrices and analysis remain producer-native.
+Physical validation established a pure 180-degree mapping between producer-native zone ordering and the physically upright image. Static plots, live view, playback and MP4 output apply that presentation transform while raw packet order, terminal matrices and analysis remain producer-native.
+
+The validated mapping is:
+
+```text
+physical upper-left   -> producer r07c07
+physical upper-right  -> producer r07c00
+physical lower-left   -> producer r00c07
+physical lower-right  -> producer r00c00
+```
+
+`tof_optical` is now frozen as right-handed with `+X` image-right, `+Y` image-down and `+Z` forward into the scene. See [`../../docs/tof-zone-orientation.md`](../../docs/tof-zone-orientation.md) and [`../../docs/coordinate-frames.md`](../../docs/coordinate-frames.md).
 
 MP4 export uses nearest-neighbour depth rendering and maps the recorded timestamps onto a constant-frame-rate video. Real acquisition gaps become held frames rather than being silently compressed. For normal test recordings, omit the path and the viewer creates a timestamped file under the Git-ignored `recordings/` directory:
 
@@ -167,10 +178,10 @@ py host/python/analyze_capture.py packets.bin
 
 ## Next
 
-1. confirm the 180-degree presentation correction with one short playback/live sanity check, then merge the live/temporal viewer increment;
-2. freeze coordinate-frame and zone-index conventions before merging any 64-point projection code;
-3. add the Kotlin/Android protocol-parity smoke test using the shared golden fixtures;
-4. implement calibrated 8x8-to-64-point projection;
-5. proceed to orientation, controlled-pose scanning and later odometry/mapping.
+1. define nominal/calibrated direction vectors for all 64 VL53L5CX zones and implement `distance + ray -> (x, y, z)` in `tof_optical`;
+2. add golden geometry examples and Kotlin/Android parity coverage for the zone/ray projection;
+3. freeze `imu_sensor`, `mag_sensor`, `device_body`, quaternion and transform conventions;
+4. calibrate rigid ToF/IMU/magnetometer assembly extrinsics;
+5. proceed to orientation-aware scanning, controlled-pose reconstruction and later odometry/mapping.
 
 Python is the reference implementation, not the architecture authority. Capture, protocol and calibration semantics must remain reproducible in Kotlin/Android without importing Python-specific concepts.

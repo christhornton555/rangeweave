@@ -1,14 +1,16 @@
 # Raw depth / health viewer
 
-**Status: Phase 2 implementation candidate.**
+**Status: Phase 2 implementation validated.**
 
-The first Rangeweave viewer is deliberately a **raw 2D diagnostic view**, not yet a calibrated 3D projection. It consumes a canonical capture through the same protocol decoder used by replay and summarizes the `TOF_GRID` records without assigning physical optical axes.
+The first Rangeweave viewer is deliberately a **raw 2D diagnostic view**, not yet a calibrated 3D projection. It consumes a canonical capture through the same protocol decoder used by replay and summarizes the `TOF_GRID` records while preserving producer-native ordering.
 
 ## Why this comes before 3D projection
 
-Protocol v0.1 defines `layout_id = 0` as **producer-native flattened zone order**. It intentionally does not say that row 0 is physically top, that column 0 is physically left, or which direction is +X/+Y/+Z in `tof_optical`.
+Protocol v0.1 defines `layout_id = 0` as **producer-native flattened zone order**. Raw capture semantics intentionally do not reorder the sensor data.
 
-Those conventions must be frozen in [`coordinate-frames.md`](coordinate-frames.md) before 64-point projection code is merged. The raw viewer therefore labels axes only as producer-native row/column indices. No display transform is written back into capture data or treated as sensor geometry.
+The physical mapping has now been measured and frozen separately: producer-native ordering is rotated 180 degrees relative to the physically upright image. See [`tof-zone-orientation.md`](tof-zone-orientation.md) and [`coordinate-frames.md`](coordinate-frames.md).
+
+The raw viewer still labels terminal data in producer-native row/column indices, and no display transform is written back into capture data or treated as a protocol semantic.
 
 This also keeps the current breadboard assembly extrinsics out of the raw depth path. A ToF board and IMU board may be mounted at arbitrary relative orientations; cross-sensor alignment is a later calibration/assembly-transform concern.
 
@@ -71,6 +73,8 @@ The graphical window shows six diagnostics:
 5. mean-plane residual;
 6. valid-distance reflectance mean.
 
+Graphical plots apply the validated 180-degree presentation rotation while retaining producer-native zone labels. Numeric/terminal output remains producer-native.
+
 Select another ToF record with:
 
 ```powershell
@@ -103,19 +107,16 @@ The capture remained free of decode, sequence and acquisition-health errors. Val
 
 After invalid samples were excluded, the mean-distance grid fitted a plane across all 64 zones with approximately 2.36 mm RMS residual and about 7.62 mm maximum absolute residual. This is a useful spatial-quality diagnostic, not a calibration correction; the capture was an informal breadboard test and included operator obstruction plus the sensor's protective film.
 
-A flat wall does **not** imply that all 64 raw range values should be exactly equal. The physical interpretation depends on the VL53L5CX zone ray geometry and later coordinate-frame calibration. The plane fit exists to expose spatial structure before those assumptions are introduced.
+A flat wall does **not** imply that all 64 raw range values should be exactly equal. The physical interpretation depends on the VL53L5CX zone ray geometry and later optical calibration. The plane fit exists to expose spatial structure before those assumptions are introduced.
 
 ## Deferred
 
-This PR intentionally does not add:
+This raw viewer intentionally does not add:
 
 - calibrated zone rays;
-- `tof_optical` axis conventions;
 - 3D point projection;
 - IMU/ToF assembly extrinsics;
 - orientation fusion;
-- live animated USB viewing;
-- recorded temporal playback or video export;
 - filtering beyond the explicitly documented zero-distance validity rule.
 
-Those should build on the raw measurements rather than being hidden inside the viewer.
+Physical zone orientation and `tof_optical` axes are no longer deferred: they are frozen in [`tof-zone-orientation.md`](tof-zone-orientation.md) and [`coordinate-frames.md`](coordinate-frames.md). The next geometry increment should build calibrated or explicitly nominal 64-zone rays on top of those conventions rather than modifying raw measurements.
