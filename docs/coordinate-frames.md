@@ -1,6 +1,6 @@
 # Coordinate frames
 
-**Status: `tof_optical` zone orientation and axes frozen; IMU/magnetometer/body/world transform conventions remain to be frozen before cross-sensor fusion.**
+**Status: `tof_optical` zone orientation and axes frozen; a nominal 64-zone projection model is defined; IMU/magnetometer/body/world transform conventions remain to be frozen before cross-sensor fusion.**
 
 Named frames planned by the architecture:
 
@@ -24,6 +24,8 @@ It is a **right-handed** optical frame:
 Therefore `+X × +Y = +Z`.
 
 This convention is project-owned. It is intentionally stated explicitly rather than inherited implicitly from OpenGL, Android, Open3D, ROS or any other platform API.
+
+Geometric distances and Cartesian coordinates in the reference host layer are expressed in **millimetres** unless an interface explicitly states otherwise.
 
 ## Producer-native versus physical zone indices
 
@@ -86,7 +88,34 @@ Because the grid has an even number of rows and columns, no single zone lies exa
 
 The measured experiment and rationale are recorded in [`tof-zone-orientation.md`](tof-zone-orientation.md).
 
-## Still to freeze
+## Nominal 64-zone projection
+
+The first nominal VL53L5CX ray/projection model is documented in [`tof-ray-geometry.md`](tof-ray-geometry.md) and implemented by `host/python/rangeweave_geometry.py`.
+
+A crucial device convention is now explicit: VL53L5CX `distance_mm` is the **axial/perpendicular Z distance**, not slant range. For each producer ZoneID, Rangeweave stores a projective direction `(x_per_z, y_per_z, 1)` and computes:
+
+```text
+X = x_per_z * distance_mm
+Y = y_per_z * distance_mm
+Z = distance_mm
+```
+
+The nominal slopes are derived from ST's published VL53L5CX plane/XYZ lookup table, with the documented duplicated-yaw copy error corrected by symmetry. The model is replaceable: raw captures do not depend on it, and future per-device optical calibration may supersede the nominal slopes.
+
+A normalized unit ray may be derived from the same vector for algorithms that need direction only. It must **not** be multiplied directly by `distance_mm`, because that would reinterpret the device's axial range as a slant range.
+
+Golden one-metre axial-wall examples include:
+
+```text
+producer ZoneID 0  -> (+362.624, +362.624, 1000) mm
+producer ZoneID 7  -> (-362.624, +362.624, 1000) mm
+producer ZoneID 56 -> (+362.624, -362.624, 1000) mm
+producer ZoneID 63 -> (-362.624, -362.624, 1000) mm
+```
+
+All 64 synthetic wall points retain `Z = 1000 mm` exactly.
+
+## Still to freeze / calibrate
 
 Before IMU/ToF fusion or world-frame reconstruction is merged, we must still document, with diagrams and golden numeric examples:
 
@@ -95,8 +124,7 @@ Before IMU/ToF fusion or world-frame reconstruction is merged, we must still doc
 3. `device_body` axes;
 4. quaternion component order, active/passive interpretation and multiplication order;
 5. transform notation (`T_A_B` meaning exactly what?);
-6. units for all geometric/calibration quantities;
-7. calibrated VL53L5CX zone-ray directions and the exact optical origin;
-8. rigid extrinsics between `tof_optical`, `imu_sensor`, `mag_sensor` and `device_body`.
+6. per-device refinement of the nominal VL53L5CX zone directions and exact optical origin where required;
+7. rigid extrinsics between `tof_optical`, `imu_sensor`, `mag_sensor` and `device_body`.
 
 No platform-specific API convention may silently become the project convention.
