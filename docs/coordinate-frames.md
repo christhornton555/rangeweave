@@ -1,6 +1,6 @@
 # Coordinate frames
 
-**Status: `tof_optical` zone orientation and axes frozen; a nominal 64-zone projection model is defined; IMU/magnetometer/body/world transform conventions remain to be frozen before cross-sensor fusion.**
+**Status: `tof_optical` zone orientation and axes frozen; a nominal fallback 64-zone projection profile is defined; IMU/magnetometer/body/world transform conventions remain to be frozen before cross-sensor fusion.**
 
 Named frames planned by the architecture:
 
@@ -88,11 +88,11 @@ Because the grid has an even number of rows and columns, no single zone lies exa
 
 The measured experiment and rationale are recorded in [`tof-zone-orientation.md`](tof-zone-orientation.md).
 
-## Nominal 64-zone projection
+## Nominal 64-zone projection fallback
 
-The first nominal VL53L5CX ray/projection model is documented in [`tof-ray-geometry.md`](tof-ray-geometry.md) and implemented by `host/python/rangeweave_geometry.py`.
+The first built-in VL53L5CX ray/projection profile is documented in [`tof-ray-geometry.md`](tof-ray-geometry.md) and implemented by `host/python/rangeweave_geometry.py`.
 
-A crucial device convention is now explicit: VL53L5CX `distance_mm` is the **axial/perpendicular Z distance**, not slant range. For each producer ZoneID, Rangeweave stores a projective direction `(x_per_z, y_per_z, 1)` and computes:
+A crucial device convention is explicit: VL53L5CX `distance_mm` is the **axial/perpendicular Z distance**, not slant range. For each producer ZoneID, Rangeweave stores a projective direction `(x_per_z, y_per_z, 1)` and computes:
 
 ```text
 X = x_per_z * distance_mm
@@ -100,11 +100,13 @@ Y = y_per_z * distance_mm
 Z = distance_mm
 ```
 
-The nominal slopes are derived from ST's published VL53L5CX plane/XYZ lookup table, with the documented duplicated-yaw copy error corrected by symmetry. The model is replaceable: raw captures do not depend on it, and future per-device optical calibration may supersede the nominal slopes.
+The built-in slopes are derived from ST's published VL53L5CX plane/XYZ lookup table, with the documented duplicated-yaw copy error corrected for that profile. Their architectural role is a **nominal fallback for uncalibrated systems**. Raw captures do not depend on them, and downstream Rangeweave geometry must be able to substitute a measured per-device profile without changing capture semantics.
+
+Rangeweave does not require calibrated zone directions to preserve the ST table's symmetry, spacing or curvature. A valid measured profile may bow inward, bow outward, be asymmetric, or differ zone-by-zone if the calibration measurements support it.
 
 A normalized unit ray may be derived from the same vector for algorithms that need direction only. It must **not** be multiplied directly by `distance_mm`, because that would reinterpret the device's axial range as a slant range.
 
-Golden one-metre axial-wall examples include:
+Golden one-metre axial-wall examples for the built-in fallback include:
 
 ```text
 producer ZoneID 0  -> (+362.624, +362.624, 1000) mm
@@ -115,6 +117,8 @@ producer ZoneID 63 -> (-362.624, -362.624, 1000) mm
 
 All 64 synthetic wall points retain `Z = 1000 mm` exactly.
 
+The fallback has been exercised against both a real flat-wall capture and a thin diagonal foreground object against a distant wall. Those tests validate the projection pipeline and depth convention. They do not elevate the ST-derived X/Y lattice to per-device calibrated truth; the front-on diagonal-object test visibly exposed the fallback lattice's inward edge curvature, motivating the generic calibration layer planned next.
+
 ## Still to freeze / calibrate
 
 Before IMU/ToF fusion or world-frame reconstruction is merged, we must still document, with diagrams and golden numeric examples:
@@ -124,7 +128,7 @@ Before IMU/ToF fusion or world-frame reconstruction is merged, we must still doc
 3. `device_body` axes;
 4. quaternion component order, active/passive interpretation and multiplication order;
 5. transform notation (`T_A_B` meaning exactly what?);
-6. per-device refinement of the nominal VL53L5CX zone directions and exact optical origin where required;
+6. portable per-device VL53L5CX geometry profiles, calibration procedure, fit diagnostics and exact optical origin where required;
 7. rigid extrinsics between `tof_optical`, `imu_sensor`, `mag_sensor` and `device_body`.
 
 No platform-specific API convention may silently become the project convention.
