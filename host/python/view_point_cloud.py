@@ -23,10 +23,10 @@ def selected_frame(analysis, requested_index):
     return index, analysis.tof_frames[index]
 
 
-def project_frame(frame):
+def project_frame(frame, profile=geometry.NOMINAL_ST_PROFILE):
     if frame.distance_mm is None:
         raise geometry.GeometryError("selected ToF frame has no distance field")
-    return geometry.project_distances_mm(frame.distance_mm)
+    return geometry.project_distances_mm(frame.distance_mm, profile)
 
 
 def valid_points(points):
@@ -61,7 +61,7 @@ def connected_runs(points, max_link_dz_mm):
     return runs
 
 
-def print_summary(analysis, frame_index, points, max_link_dz_mm) -> None:
+def print_summary(analysis, frame_index, points, max_link_dz_mm, profile) -> None:
     valid = valid_points(points)
     if not valid:
         raise geometry.GeometryError("selected frame contains no valid projected distances")
@@ -73,8 +73,8 @@ def print_summary(analysis, frame_index, points, max_link_dz_mm) -> None:
     print("Rangeweave 64-zone point projection")
     print(f"  capture:        {analysis.input_path}")
     print(f"  frame:          {frame_index} / {len(analysis.tof_frames) - 1}")
-    print(f"  geometry model: {geometry.GEOMETRY_MODEL}")
-    print(f"  profile role:   {geometry.GEOMETRY_PROFILE_ROLE}")
+    print(f"  geometry model: {profile.name}")
+    print(f"  profile role:   {profile.role}")
     print(f"  valid points:   {len(valid)} / {geometry.ZONE_COUNT}")
     print("  frame axes:     tof_optical +X right, +Y down, +Z forward")
     print("  distance rule:  VL53L5CX distance_mm is axial Z, not slant range")
@@ -131,7 +131,13 @@ def _plot_run_front(ax, run):
     )
 
 
-def build_figure(analysis, frame_index, points, max_link_dz_mm=DEFAULT_MAX_LINK_DZ_MM):
+def build_figure(
+    analysis,
+    frame_index,
+    points,
+    profile=geometry.NOMINAL_ST_PROFILE,
+    max_link_dz_mm=DEFAULT_MAX_LINK_DZ_MM,
+):
     plt = import_matplotlib()
     fig = plt.figure(figsize=(15, 7))
     ax_3d = fig.add_subplot(121, projection="3d")
@@ -174,7 +180,8 @@ def build_figure(analysis, frame_index, points, max_link_dz_mm=DEFAULT_MAX_LINK_
     fig.colorbar(depth_scatter, ax=ax_front, label="tof_optical Z (mm) — forward")
 
     fig.suptitle(
-        f"Rangeweave 64-zone projection — {analysis.input_path.name}",
+        f"Rangeweave 64-zone projection — {analysis.input_path.name}\n"
+        f"{profile.name} [{profile.role}]",
         fontsize=12,
     )
     fig.tight_layout()
@@ -191,6 +198,15 @@ def main() -> int:
         type=int,
         default=-1,
         help="ToF frame index; negative indices count from end (default: -1)",
+    )
+    parser.add_argument(
+        "--geometry-profile",
+        default=None,
+        metavar="PATH",
+        help=(
+            "load a Rangeweave tof_geometry.json profile; default is the built-in "
+            "ST nominal fallback"
+        ),
     )
     parser.add_argument(
         "--summary-only",
@@ -216,10 +232,21 @@ def main() -> int:
         parser.error("--max-link-dz-mm must be greater than zero")
 
     try:
+        profile = (
+            geometry.NOMINAL_ST_PROFILE
+            if args.geometry_profile is None
+            else geometry.load_geometry_profile(Path(args.geometry_profile))
+        )
         analysis = depth.analyse_capture(Path(args.capture))
         frame_index, frame = selected_frame(analysis, args.frame)
-        points = project_frame(frame)
-        print_summary(analysis, frame_index, points, args.max_link_dz_mm)
+        points = project_frame(frame, profile)
+        print_summary(
+            analysis,
+            frame_index,
+            points,
+            args.max_link_dz_mm,
+            profile,
+        )
     except (OSError, depth.DepthAnalysisError, geometry.GeometryError) as exc:
         parser.error(str(exc))
 
@@ -231,6 +258,7 @@ def main() -> int:
             analysis,
             frame_index,
             points,
+            profile=profile,
             max_link_dz_mm=args.max_link_dz_mm,
         )
     except (RuntimeError, ValueError) as exc:
