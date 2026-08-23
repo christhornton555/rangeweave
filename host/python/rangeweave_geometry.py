@@ -6,6 +6,11 @@ first geometry layer above that lossless representation.
 Important: VL53L5CX ``distance_mm`` is an axial/perpendicular distance.  It is
 therefore the Z coordinate in ``tof_optical``; it must not be multiplied by a
 unit ray as though it were slant range.
+
+The built-in ST-derived lookup table is a nominal fallback profile for systems
+that do not yet have a per-device optical calibration.  Rangeweave does not
+assume that every physical sensor has this exact lattice, or that a calibrated
+lattice must be symmetric or bow in any particular direction.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ ZONE_COLS = 8
 ZONE_COUNT = ZONE_ROWS * ZONE_COLS
 
 GEOMETRY_MODEL = "vl53l5cx-st-plane-algo-2022-corrected-yaw"
+GEOMETRY_PROFILE_ROLE = "nominal-fallback"
 
 
 class GeometryError(ValueError):
@@ -56,11 +62,17 @@ class Point3:
 
 # Per-zone (X/Z, Y/Z) slopes in producer-native ZoneID order 0..63.
 #
-# These values are derived from the VL53L5CX pitch/yaw lookup table published by
-# ST for its plane/XYZ example.  The source table's duplicated yaw entry at zone
-# 48 is corrected from 203.20 degrees to 215.40 degrees, restoring the expected
-# symmetry.  The ST example is expressed while viewing the device from the lens
-# side; Rangeweave's frozen tof_optical +X points scene-right when looking
+# NOMINAL FALLBACK ONLY: these values are derived from the VL53L5CX pitch/yaw
+# lookup table published by ST for its plane/XYZ example.  They provide useful
+# geometry before a builder has calibrated their own sensor, but they are not a
+# Rangeweave requirement and are not treated as per-device ground truth.  A
+# calibrated profile may legitimately be asymmetric, bow inward, bow outward,
+# or otherwise differ zone-by-zone from this table.
+#
+# The source table's duplicated yaw entry at zone 48 is corrected from 203.20
+# degrees to 215.40 degrees, restoring the expected symmetry of this *nominal*
+# ST profile.  The ST example is expressed while viewing the device from the
+# lens side; Rangeweave's frozen tof_optical +X points scene-right when looking
 # forward from behind the sensor, so the ST X component is mirrored here.
 #
 # Keeping the derived slopes rather than ST's angular naming also makes the
