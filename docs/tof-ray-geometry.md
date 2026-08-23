@@ -1,6 +1,6 @@
 # VL53L5CX 64-zone ray geometry
 
-**Status: nominal host geometry candidate. The producer-native wire format remains unchanged.**
+**Status: physically exercised nominal host geometry fallback. The producer-native wire format remains unchanged. Exact per-device ray directions are not yet calibrated.**
 
 This document defines the first Rangeweave mapping from one VL53L5CX 8x8 distance frame to 64 XYZ points in the frozen [`tof_optical`](coordinate-frames.md) frame.
 
@@ -27,15 +27,23 @@ point = distance_mm * unit_ray
 
 That incorrect rule would make an axial flat wall bow toward the sensor at the edges.
 
-## Geometry source
+## Geometry source and fallback role
 
-The current nominal model is named:
+The built-in model is named:
 
 ```text
 vl53l5cx-st-plane-algo-2022-corrected-yaw
 ```
 
-It is derived from the VL53L5CX pitch/yaw lookup table published by an ST employee in the ST Community thread *For VL53L5CX: what does ResultsData->distance_mm[ZoneNum] exactly mean?*. The post describes it as the code ST used for the plane/XYZ example.
+Its role in Rangeweave is explicitly:
+
+```text
+nominal fallback profile
+```
+
+It exists so an uncalibrated Rangeweave build can produce useful XYZ geometry immediately. It is **not** treated as the calibrated optical truth for every VL53L5CX, breakout board, cover window, or assembled Rangeweave unit.
+
+The profile is derived from the VL53L5CX pitch/yaw lookup table published by an ST employee in the ST Community thread *For VL53L5CX: what does ResultsData->distance_mm[ZoneNum] exactly mean?*. The post describes it as the code ST used for the plane/XYZ example.
 
 Relevant source material:
 
@@ -43,9 +51,11 @@ Relevant source material:
 - ST Community: https://community.st.com/mems-sensors-48/for-vl53l5cx-what-does-resultsdata-distance-mm-zonenum-exactly-mean-7106
 - related XYZ thread: https://community.st.com/imaging-sensors-49/vl53l5cx-multi-zone-sensor-get-x-y-z-of-points-relative-to-origin-29010
 
-The published yaw table contains one duplicated value in ZoneID 48. A later community reply identifies the symmetric value as 215.40° rather than 203.20°. A retired ST employee subsequently acknowledged that the published point-cloud numbers contained a copy error. Rangeweave uses the symmetry-corrected 215.40° value.
+The published yaw table contains one duplicated value in ZoneID 48. A later community reply identifies the symmetric value as 215.40° rather than 203.20°. A retired ST employee subsequently acknowledged that the published point-cloud numbers contained a copy error. Rangeweave uses the symmetry-corrected 215.40° value for this **nominal ST fallback profile**.
 
-A later ST Community example also circulated a different VL53L5CX pitch table beginning at 59°. That post explicitly described its verification as minimal. Rangeweave does not silently choose that alternate table as the canonical model. The geometry API is kept replaceable so a better characterised or per-device model can supersede the current nominal slopes without changing capture semantics.
+A later ST Community example also circulated a different VL53L5CX pitch table beginning at 59°. That post explicitly described its verification as minimal. Rangeweave does not silently choose that alternate table as the canonical model.
+
+Most importantly, Rangeweave does not impose the symmetry or curvature of either published table on calibrated systems. A measured per-device profile may legitimately bow inward, bow outward, be asymmetric, or contain zone-by-zone deviations from the nominal ST profile. Those differences are measurements to preserve, not errors to force back toward the fallback LUT.
 
 ## Coordinate conversion
 
@@ -100,6 +110,48 @@ ZoneID 36 -> (-49.446, -49.446, 1000) mm
 
 All 64 points retain exactly `Z = 1000 mm`. This flat-Z invariant is covered by CI.
 
+## Physical validation performed for PR #8
+
+The nominal fallback has now been exercised against real Rangeweave captures. These tests validate the projection pipeline and expose the limits of the nominal LUT; they do **not** constitute per-device ray calibration.
+
+### Flat wall
+
+Capture:
+
+```text
+capture_20260821_004124Z_flat-wall-1000mm
+```
+
+The final frame projected 64/64 valid points with:
+
+```text
+X: -331.1 .. +344.9 mm
+Y: -344.9 .. +333.3 mm
+Z:  871.0 .. 951.0 mm
+```
+
+The 3D projection formed a coherent tilted sheet rather than a spherical/bowled depth surface. That supports the axial-Z interpretation of `distance_mm`, the producer-zone ordering, and the basic projection pipeline. The Z gradient is consistent with the wall/sensor not being perfectly fronto-parallel in this informal capture.
+
+### Thin diagonal plywood foreground
+
+Capture:
+
+```text
+capture_20260822_234124Z_pointcloud-close-object
+```
+
+The final frame projected 64/64 valid points with:
+
+```text
+X: -320.6 .. +316.6 mm
+Y: -320.6 .. +316.6 mm
+Z:  291.0 .. 885.0 mm
+```
+
+A long, straight, thin plywood strip held diagonally at roughly 300 mm was clearly separated from a wall around 850-900 mm. The test exercised a hard foreground/background depth discontinuity and exposed fictitious long mesh connections in the diagnostic viewer; the viewer now suppresses row/column links when neighbouring points exceed a configurable Z discontinuity threshold.
+
+The front-on view also made the nominal ST lattice curvature visible, especially around the wall points near the image edges. That lateral X/Y curvature is generated by the fallback `(X/Z, Y/Z)` LUT. It is therefore **not evidence that every physical Rangeweave sensor has that exact inward bow**. The observation is one reason Rangeweave will support per-device geometry calibration rather than treating the ST table as canonical calibrated geometry.
+
 ## Invalid and low-confidence samples
 
 The current host geometry follows the existing analysis convention:
@@ -111,7 +163,7 @@ This is not yet the full VL53L5CX quality policy.
 
 ST recommends checking `target_status`; for clean object edges, the ST guidance in the cited discussion is to accept statuses 5, 6 or 9 and reject status 12, which can represent weak lens/glare returns. Protocol v0.1 already reserves the `TOF_FIELD_TARGET_STATUS` field, but the current reference producer captures only distance and reflectance (`field_mask = 0x0003`).
 
-Consequently the first point-cloud projection is geometrically useful but cannot yet perform ST status-based quality filtering. Adding target status to the reference producer is the natural next acquisition refinement.
+Consequently the first point-cloud projection is geometrically useful but cannot yet perform ST status-based quality filtering. Adding target status to the reference producer is a later acquisition refinement.
 
 ## Point-cloud viewer policy
 
@@ -140,23 +192,55 @@ The graphical figure contains two complementary views:
 
 The front-on plot deliberately displays `+Y` downward so its image orientation matches the frozen `tof_optical` scene convention and the physically validated ToF presentation.
 
-This front-on diagnostic is useful for checking whether a sharp physical feature, such as a diagonal foreground strip, appears with the correct orientation after producer-zone mapping and optical projection.
+This front-on diagnostic is useful for checking physical feature orientation and for distinguishing measured Z structure from the lateral sampling lattice implied by the active geometry profile.
+
+## Calibration philosophy
+
+Rangeweave defines the coordinate frame and the calibration contract; it does not define what shape a particular sensor's 64-ray field must have.
+
+A future calibrated geometry profile should therefore store all 64 zone directions independently. Calibration must not require:
+
+```text
+left = -right
+top = -bottom
+inward bow
+outward bow
+uniform spacing
+```
+
+Symmetry and similarity to the ST fallback profile are diagnostics only. A valid calibration may disagree with the fallback in any direction if the measurements support it.
+
+The intended architecture is:
+
+```text
+raw producer-native TOF_GRID
+        ↓
+geometry profile
+   ├─ nominal ST fallback when uncalibrated
+   └─ measured per-device profile when available
+        ↓
+metric tof_optical XYZ
+```
+
+Optional image rectification may later provide a visually regular grid for human viewing, but rectification must remain separate from the metric geometry used for reconstruction.
 
 ## Code boundary
 
-[`../host/python/rangeweave_geometry.py`](../host/python/rangeweave_geometry.py) is standard-library only and provides:
+[`../host/python/rangeweave_geometry.py`](../host/python/rangeweave_geometry.py) is standard-library only and currently provides:
 
 - producer ZoneID ↔ validated physical grid mapping;
-- per-zone `(X/Z, Y/Z, 1)` projection vectors;
+- the built-in nominal fallback `(X/Z, Y/Z, 1)` profile;
 - normalized unit rays for later geometry algorithms;
 - one-zone axial-distance projection;
 - full 64-zone projection preserving invalid zones as `None`.
 
 [`../host/python/view_point_cloud.py`](../host/python/view_point_cloud.py) is a thin optional-Matplotlib frontend for one frame. It does not alter capture or analysis semantics.
 
+A later increment will turn the geometry profile into a portable per-device calibration artifact rather than making downstream code depend directly on the built-in fallback table.
+
 ## Not calibrated yet
 
-This model is a nominal optical mapping, not a per-unit calibration. It does not yet estimate or correct:
+The built-in profile is a nominal optical fallback, not a per-unit calibration. It does not yet estimate or correct:
 
 - per-device zone direction error;
 - exact optical-centre translation;
