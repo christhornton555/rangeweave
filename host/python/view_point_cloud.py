@@ -74,6 +74,7 @@ def print_summary(analysis, frame_index, points, max_link_dz_mm) -> None:
     print(f"  capture:        {analysis.input_path}")
     print(f"  frame:          {frame_index} / {len(analysis.tof_frames) - 1}")
     print(f"  geometry model: {geometry.GEOMETRY_MODEL}")
+    print(f"  profile role:   {geometry.GEOMETRY_PROFILE_ROLE}")
     print(f"  valid points:   {len(valid)} / {geometry.ZONE_COUNT}")
     print("  frame axes:     tof_optical +X right, +Y down, +Z forward")
     print("  distance rule:  VL53L5CX distance_mm is axial Z, not slant range")
