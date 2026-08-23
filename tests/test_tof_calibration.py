@@ -4,6 +4,7 @@ from pathlib import Path
 import math
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 
 HERE = Path(__file__).resolve().parent
@@ -14,6 +15,7 @@ if str(HOST_PYTHON) not in sys.path:
 
 import rangeweave_geometry as geometry
 import rangeweave_tof_calibration as calibration
+import view_point_cloud as point_view
 
 
 def synthetic_outward_asymmetric_profile():
@@ -116,6 +118,14 @@ class GeometryProfileTests(unittest.TestCase):
                 role="calibrated",
                 xy_per_z=((0.0, 0.0),) * 63,
             )
+
+    def test_point_cloud_frontend_uses_explicit_profile_for_projection(self):
+        profile = synthetic_outward_asymmetric_profile()
+        frame = SimpleNamespace(distance_mm=(500.0,) * geometry.ZONE_COUNT)
+        points = point_view.project_frame(frame, profile)
+        self.assertAlmostEqual(points[0].x_mm, profile.xy_per_z[0][0] * 500.0)
+        self.assertAlmostEqual(points[0].y_mm, profile.xy_per_z[0][1] * 500.0)
+        self.assertEqual(points[0].z_mm, 500.0)
 
 
 class PlaneCalibrationTests(unittest.TestCase):
