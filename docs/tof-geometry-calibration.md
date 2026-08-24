@@ -1,8 +1,10 @@
 # ToF geometry profiles and plane calibration
 
-**Status: generic host calibration framework candidate. No producer/capture semantics are changed.**
+**Status: generic host calibration framework. Per-device calibration is optional; no producer/capture semantics are changed.**
 
 This document defines how Rangeweave represents and estimates per-device 8x8 ToF zone geometry above the lossless producer-native capture layer.
+
+Rangeweave is usable without this calibration step. Uncalibrated systems use the built-in ST-derived nominal fallback profile; per-device calibration is an optional refinement for builders who want to characterise and improve the geometric accuracy of their particular unit.
 
 The central rule is deliberately permissive:
 
@@ -35,9 +37,9 @@ name: vl53l5cx-st-plane-algo-2022-corrected-yaw
 role: nominal-fallback
 ```
 
-It is useful before a builder has calibrated their own unit, but it is not a regularisation target and calibrated profiles are not required to resemble it.
+It is the normal fallback when no calibration artifact is supplied. It is not a regularisation target and calibrated profiles are not required to resemble it.
 
-Projection functions now accept an optional explicit profile. Omitting it preserves the previous behaviour and uses the ST nominal fallback.
+Projection functions accept an optional explicit profile. Omitting it preserves the nominal-fallback behaviour.
 
 ## Portable `tof_geometry.json`
 
@@ -117,9 +119,9 @@ The 64 zones are solved separately. There is no neighbour smoothing, symmetry co
 
 The calibration planes must constrain both X and Y.
 
-For example, several yaw-only / X-normal tilts cannot determine `y_per_z`; the solver detects the rank-deficient system and rejects it rather than inventing a value.
+For example, several X-axis-only tilts cannot determine `y_per_z`; the solver detects the rank-deficient system and rejects it rather than inventing a value.
 
-A practical calibration set should therefore contain independent tilts about both image axes, preferably with redundancy. A future recommended hardware workflow is expected to use several positive/negative tilts in each direction plus one or more mixed tilts.
+A practical calibration set should therefore contain independent tilts about both image axes, preferably with redundancy. The physical workflow may use any stable board support provided the actual plane poses are known.
 
 A fronto-parallel plane is useful for range/bias diagnostics but contributes no X/Y ray-direction constraint by itself.
 
@@ -164,10 +166,8 @@ This geometry solver estimates only `(X/Z, Y/Z)` ray slopes. It does not fit ran
 
 Those quantities should remain separate calibration layers. In particular, Rangeweave should not bend a zone ray merely to compensate for an axial range bias.
 
-## Physical workflow still to add
+## Physical workflow
 
-This PR provides the profile representation, independent-zone solver, residual diagnostics and runtime profile loading.
+The profile representation, independent-zone solver, residual diagnostics and runtime profile loading are implemented. The optional hardware-facing workflow is defined separately in [`tof-calibration-plane-workflow.md`](tof-calibration-plane-workflow.md).
 
-It intentionally does **not** yet prescribe how a builder measures a calibration plane pose. The next hardware-facing increment should define a reproducible open-source workflow that turns several captures plus known jig/plane poses into `CalibrationPlane` observations and reserves at least one held-out pose for validation.
-
-That workflow must be suitable for other builders' sensors, not tuned to reproduce the lattice observed on the original Rangeweave prototype.
+That workflow uses measured known-plane poses and does not require a centre-pivot jig or fixed sensor-board distance. It should remain suitable for other builders' sensors rather than being tuned to reproduce the lattice observed on the original Rangeweave prototype.
