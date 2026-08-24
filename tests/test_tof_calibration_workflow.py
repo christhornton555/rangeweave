@@ -21,15 +21,15 @@ def plane_z_at_xy(normal_and_offset, x_mm, y_mm):
 
 
 class KnownPlanePoseTests(unittest.TestCase):
-    def test_fronto_parallel_known_point_defines_z_plane(self):
-        pose = workflow.KnownPlanePose(25.0, -10.0, 800.0)
+    def test_fronto_parallel_centre_on_axis_pose_is_z_equals_distance(self):
+        pose = workflow.KnownPlanePose.centre_on_optical_axis(800.0)
         nx, ny, nz, offset = pose.normal_and_offset()
         self.assertAlmostEqual(nx, 0.0)
         self.assertAlmostEqual(ny, 0.0)
         self.assertAlmostEqual(nz, 1.0)
         self.assertAlmostEqual(offset, 800.0)
 
-    def test_positive_rx_sign_is_frozen(self):
+    def test_positive_rx_makes_bottom_farther_and_top_closer(self):
         pose = workflow.KnownPlanePose.centre_on_optical_axis(
             800.0,
             rotation_x_deg=15.0,
@@ -43,7 +43,7 @@ class KnownPlanePoseTests(unittest.TestCase):
         self.assertGreater(plane_z_at_xy(geometry, 0.0, +100.0), 800.0)
         self.assertLess(plane_z_at_xy(geometry, 0.0, -100.0), 800.0)
 
-    def test_positive_ry_sign_is_frozen(self):
+    def test_positive_ry_makes_right_side_closer_and_left_side_farther(self):
         pose = workflow.KnownPlanePose.centre_on_optical_axis(
             800.0,
             rotation_y_deg=15.0,
@@ -57,11 +57,9 @@ class KnownPlanePoseTests(unittest.TestCase):
         self.assertLess(plane_z_at_xy(geometry, +100.0, 0.0), 800.0)
         self.assertGreater(plane_z_at_xy(geometry, -100.0, 0.0), 800.0)
 
-    def test_mixed_pose_has_frozen_rx_then_ry_normal(self):
-        pose = workflow.KnownPlanePose(
-            point_x_mm=25.0,
-            point_y_mm=-10.0,
-            point_z_mm=800.0,
+    def test_mixed_pose_has_frozen_rx_then_ry_golden_values(self):
+        pose = workflow.KnownPlanePose.centre_on_optical_axis(
+            800.0,
             rotation_x_deg=12.0,
             rotation_y_deg=10.0,
         )
@@ -69,41 +67,37 @@ class KnownPlanePoseTests(unittest.TestCase):
         self.assertAlmostEqual(nx, 0.169853548, places=9)
         self.assertAlmostEqual(ny, -0.207911691, places=9)
         self.assertAlmostEqual(nz, 0.963287341, places=9)
-        self.assertAlmostEqual(offset, 776.955328, places=6)
+        self.assertAlmostEqual(offset, 770.629873, places=6)
         self.assertAlmostEqual(nx * nx + ny * ny + nz * nz, 1.0, places=12)
 
-    def test_plane_passes_through_supplied_known_point(self):
+    def test_arbitrary_known_point_controls_plane_offset(self):
         pose = workflow.KnownPlanePose(
-            point_x_mm=45.0,
-            point_y_mm=30.0,
-            point_z_mm=720.0,
-            rotation_x_deg=-13.0,
-            rotation_y_deg=8.0,
+            point_x_mm=50.0,
+            point_y_mm=-20.0,
+            point_z_mm=800.0,
+            rotation_x_deg=12.0,
+            rotation_y_deg=10.0,
         )
         nx, ny, nz, offset = pose.normal_and_offset()
-        self.assertAlmostEqual(
-            nx * pose.point_x_mm + ny * pose.point_y_mm + nz * pose.point_z_mm,
-            offset,
-            places=12,
-        )
+        expected = nx * 50.0 + ny * -20.0 + nz * 800.0
+        self.assertAlmostEqual(offset, expected, places=12)
 
-    def test_axis_distance_is_convenience_not_fixed_pivot(self):
+    def test_board_distance_may_change_between_captures(self):
         first = workflow.KnownPlanePose.centre_on_optical_axis(
-            600.0,
+            700.0,
             rotation_x_deg=15.0,
         )
         second = workflow.KnownPlanePose.centre_on_optical_axis(
-            675.0,
-            rotation_x_deg=-15.0,
+            825.0,
+            rotation_y_deg=-15.0,
         )
-        self.assertEqual(first.point_z_mm, 600.0)
-        self.assertEqual(second.point_z_mm, 675.0)
+        self.assertNotEqual(first.point_z_mm, second.point_z_mm)
         self.assertNotEqual(first.normal_and_offset()[3], second.normal_and_offset()[3])
 
     def test_pose_can_be_attached_to_one_64_zone_observation(self):
         pose = workflow.KnownPlanePose(
-            point_x_mm=12.0,
-            point_y_mm=-7.0,
+            point_x_mm=10.0,
+            point_y_mm=-5.0,
             point_z_mm=700.0,
             rotation_x_deg=-15.0,
             rotation_y_deg=10.0,
@@ -112,7 +106,7 @@ class KnownPlanePoseTests(unittest.TestCase):
         plane = workflow.calibration_plane_from_pose(
             pose,
             distances,
-            label="fit-measured-pose",
+            label="fit-rx-minus15-ry-plus10",
         )
         nx, ny, nz, offset = pose.normal_and_offset()
         self.assertAlmostEqual(plane.normal_x, nx)
@@ -120,7 +114,7 @@ class KnownPlanePoseTests(unittest.TestCase):
         self.assertAlmostEqual(plane.normal_z, nz)
         self.assertAlmostEqual(plane.offset_mm, offset)
         self.assertEqual(plane.distances_mm, distances)
-        self.assertEqual(plane.label, "fit-measured-pose")
+        self.assertEqual(plane.label, "fit-rx-minus15-ry-plus10")
 
     def test_invalid_pose_is_rejected(self):
         for kwargs in (
