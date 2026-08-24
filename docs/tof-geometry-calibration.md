@@ -1,10 +1,10 @@
 # ToF geometry profiles and plane calibration
 
-**Status: generic host calibration framework. Per-device calibration is optional; no producer/capture semantics are changed.**
+**Status: generic host calibration framework. No producer/capture semantics are changed.**
 
 This document defines how Rangeweave represents and estimates per-device 8x8 ToF zone geometry above the lossless producer-native capture layer.
 
-Rangeweave is usable without this calibration step. Uncalibrated systems use the built-in ST-derived nominal fallback profile; per-device calibration is an optional refinement for builders who want to characterise and improve the geometric accuracy of their particular unit.
+Per-device calibration is **optional**. The built-in ST-derived nominal profile remains the normal out-of-box geometry for a newly assembled Rangeweave system. Builders only need this calibration workflow when they want to characterise their particular sensor and refine geometric accuracy further.
 
 The central rule is deliberately permissive:
 
@@ -37,9 +37,9 @@ name: vl53l5cx-st-plane-algo-2022-corrected-yaw
 role: nominal-fallback
 ```
 
-It is the normal fallback when no calibration artifact is supplied. It is not a regularisation target and calibrated profiles are not required to resemble it.
+It is useful without any builder calibration, but it is not a regularisation target and calibrated profiles are not required to resemble it.
 
-Projection functions accept an optional explicit profile. Omitting it preserves the nominal-fallback behaviour.
+Projection functions accept an optional explicit profile. Omitting it uses the ST nominal fallback.
 
 ## Portable `tof_geometry.json`
 
@@ -113,15 +113,15 @@ nx*x_per_z + ny*y_per_z = d/Z - nz
 
 That is linear in the two unknown zone slopes. Multiple plane poses therefore give an ordinary two-parameter least-squares problem for each ZoneID.
 
-The 64 zones are solved separately. There is no neighbour smoothing, symmetry constraint, ST-LUT prior, or common radial-distortion model in this first calibration method.
+The 64 zones are solved separately. There is no neighbour smoothing, symmetry constraint, ST-LUT prior, or common radial-distortion model in this calibration method.
 
 ## Required pose diversity
 
 The calibration planes must constrain both X and Y.
 
-For example, several X-axis-only tilts cannot determine `y_per_z`; the solver detects the rank-deficient system and rejects it rather than inventing a value.
+For example, several one-axis-only tilts cannot determine the other slope component; the solver detects the rank-deficient system and rejects it rather than inventing a value.
 
-A practical calibration set should therefore contain independent tilts about both image axes, preferably with redundancy. The physical workflow may use any stable board support provided the actual plane poses are known.
+A practical calibration set should therefore contain independent tilts about both image axes, preferably with redundancy and one or more mixed tilts.
 
 A fronto-parallel plane is useful for range/bias diagnostics but contributes no X/Y ray-direction constraint by itself.
 
@@ -131,7 +131,7 @@ A calibration plane carries 64 axial-Z measurements in producer-native ZoneID or
 
 For an individual zone, `None`, non-finite, zero, or negative distances are skipped. Calibration can still succeed for that zone if the remaining valid planes independently constrain both slopes.
 
-The current producer does not yet expose VL53L5CX `target_status`, so the first physical calibration workflow will initially have the same quality-information limitation as the existing point-cloud pipeline. Target-status acquisition remains a separate refinement.
+The current producer does not yet expose VL53L5CX `target_status`, so the physical calibration workflow currently has the same quality-information limitation as the existing point-cloud pipeline. Target-status acquisition remains a separate refinement.
 
 ## Fit diagnostics
 
@@ -166,8 +166,10 @@ This geometry solver estimates only `(X/Z, Y/Z)` ray slopes. It does not fit ran
 
 Those quantities should remain separate calibration layers. In particular, Rangeweave should not bend a zone ray merely to compensate for an axial range bias.
 
-## Physical workflow
+## Physical capture workflow
 
-The profile representation, independent-zone solver, residual diagnostics and runtime profile loading are implemented. The optional hardware-facing workflow is defined separately in [`tof-calibration-plane-workflow.md`](tof-calibration-plane-workflow.md).
+The optional physical workflow is documented in [`tof-calibration-plane-workflow.md`](tof-calibration-plane-workflow.md).
 
-That workflow uses measured known-plane poses and does not require a centre-pivot jig or fixed sensor-board distance. It should remain suitable for other builders' sensors rather than being tuned to reproduce the lattice observed on the original Rangeweave prototype.
+It defines a general measured known-plane pose rather than requiring a particular jig. `host/python/rangeweave_tof_calibration_capture.py` now reduces one stationary canonical capture to robust per-zone median distances, reports valid coverage, MAD and temporal half-drift, and preserves existing stream/metadata/health evidence before that observation is admitted to the plane solver.
+
+The remaining workflow work is to define a multi-capture manifest, run the solver from that manifest, and perform held-out physical validation against the nominal fallback.
