@@ -172,6 +172,8 @@ py host/python/inspect_tof_calibration_capture.py <capture> --show-grids
 
 The command returns a non-zero status when structural capture integrity fails.
 
+Before taking the dedicated calibration-board dataset, it is useful to run this command against an existing stationary flat-wall capture. That validates the reduction path and gives an initial empirical baseline for ordinary zone MAD and half-capture drift on the current hardware without yet fitting a calibration profile.
+
 ## Example calibration session
 
 A builder might use a roughly 700 x 700 mm board, set it securely on a support, and record several poses such as:
