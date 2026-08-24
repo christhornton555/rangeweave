@@ -152,10 +152,11 @@ py host/python/analyze_capture.py packets.bin
 
 ## Next
 
-1. define the optional multi-capture ToF calibration manifest and run the existing solver from real capture observations;
-2. validate a fitted per-device profile on held-out known-plane captures against the ST nominal fallback;
-3. freeze `imu_sensor`, `mag_sensor`, `device_body`, quaternion and transform conventions;
-4. calibrate rigid ToF/IMU/magnetometer assembly extrinsics;
-5. proceed to orientation-aware scanning, controlled-pose reconstruction and later odometry/mapping.
+1. run the calibration-capture inspector against existing stationary captures to establish empirical MAD/drift baselines;
+2. define the optional multi-capture ToF calibration manifest and run the existing solver from real capture observations;
+3. validate a fitted per-device profile on held-out known-plane captures against the ST nominal fallback;
+4. freeze `imu_sensor`, `mag_sensor`, `device_body`, quaternion and transform conventions;
+5. calibrate rigid ToF/IMU/magnetometer assembly extrinsics;
+6. proceed to orientation-aware scanning, controlled-pose reconstruction and later odometry/mapping.
 
 Python is the reference implementation, not the architecture authority. Capture, protocol and calibration semantics must remain reproducible in Kotlin/Android without importing Python-specific concepts.
