@@ -8,7 +8,15 @@ This workflow deliberately does not require a precision gimbal, centre pivot, fi
 
 ## Practical target
 
-A useful physical target is simply a reasonably flat board large enough to fill the sensor field of view at the chosen calibration distance. For the current prototype, a board around **700 mm x 700 mm** is a practical starting point.
+A useful physical target is simply a reasonably flat board large enough to fill the sensor field of view at the chosen calibration distance.
+
+The recommended convenient target size is approximately **600 mm x 600 mm**. A common **24 x 24 inch** board (609.6 x 609.6 mm) is equivalent for this purpose. This size was chosen as a practical open-source default because sheet material around 600/610 mm (2 ft) wide is widely available and substantially easier to store and transport than the next common full-sheet sizes.
+
+Target size is **not** part of the calibration mathematics. A larger or smaller board is valid provided the chosen sensor distance and board poses keep the required ToF zones on the flat target surface.
+
+For the current built-in nominal VL53L5CX profile, a board-centre distance of 600 mm gives a fronto-parallel outer-zone footprint of about 435 x 435 mm. The example mixed pose `Rx +12 deg, Ry +10 deg` occupies about 483 x 479 mm in the board plane, with the closest nominal outer-zone intersection about 267 mm from board centre. A 600 mm square therefore still contains the nominal footprint at that pose, although with only about 33 mm minimum edge margin.
+
+For practical calibration, starting with the marked board centre around **500-550 mm** from the sensor gives more useful edge margin. If a particular sensor has a wider or outward-bowing lattice, move the sensor/board closer until all required zones land comfortably inside the board. The actual measured board pose and point are what enter the solver; the nominal starting distance is not a calibration constant.
 
 The board needs a support that can hold it stationary while a short capture is recorded and allow it to be set to several accurately measured orientations. The support may be as simple or elaborate as the builder finds convenient: clamps, wedges, a hinged stand, an adjustable easel, a photographic support, or a purpose-built fixture are all compatible with the software model.
 
@@ -176,7 +184,7 @@ Before taking the dedicated calibration-board dataset, it is useful to run this 
 
 ## Example calibration session
 
-A builder might use a roughly 700 x 700 mm board, set it securely on a support, and record several poses such as:
+A builder might use a roughly 600 x 600 mm / 24 x 24 inch board, set it securely on a support, and record several poses such as:
 
 ```text
 Rx +15 deg, Ry   0 deg
@@ -226,7 +234,7 @@ The workflow does not yet:
 
 - define the multi-capture calibration manifest format;
 - prescribe how orientation/point measurements are obtained;
-- choose a mandatory target size or construction;
+- choose a mandatory target construction;
 - run the full solver directly from a manifest;
 - define evidence-based default MAD/drift stability limits;
 - compare a physical calibrated profile against the ST nominal fallback on held-out captures.
