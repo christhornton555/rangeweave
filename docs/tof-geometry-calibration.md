@@ -170,6 +170,14 @@ Those quantities should remain separate calibration layers. In particular, Range
 
 The optional physical workflow is documented in [`tof-calibration-plane-workflow.md`](tof-calibration-plane-workflow.md).
 
-It defines a general measured known-plane pose rather than requiring a particular jig. `host/python/rangeweave_tof_calibration_capture.py` now reduces one stationary canonical capture to robust per-zone median distances, reports valid coverage, MAD and temporal half-drift, and preserves existing stream/metadata/health evidence before that observation is admitted to the plane solver.
+It defines a general measured known-plane pose rather than requiring a particular jig. `host/python/rangeweave_tof_calibration_capture.py` reduces one stationary canonical capture to robust per-zone median distances, reports valid coverage, MAD and temporal half-drift, and preserves existing stream/metadata/health evidence before that observation is admitted to the plane solver.
+
+The reducer can be exercised independently before a dedicated calibration board is available:
+
+```powershell
+py host/python/inspect_tof_calibration_capture.py <stationary-capture> --show-grids
+```
+
+This gives an empirical baseline for ordinary stationary MAD and half-capture drift on the current hardware.
 
 The remaining workflow work is to define a multi-capture manifest, run the solver from that manifest, and perform held-out physical validation against the nominal fallback.
