@@ -1,10 +1,10 @@
 # Optional ToF known-plane calibration workflow
 
-**Status: candidate physical-workflow convention for Phase 2 calibration.**
+**Status: candidate physical-workflow convention and capture reducer for Phase 2 calibration.**
 
 Rangeweave does **not** require per-device ToF geometry calibration before use. The normal out-of-box path uses the built-in ST-derived `nominal-fallback` geometry profile. The workflow described here is an optional precision-refinement step for builders who want to characterise their particular sensor and generate a per-device `tof_geometry.json` profile.
 
-This document defines only what the software needs to know about a flat calibration target. It deliberately does not require a precision gimbal, centre pivot, fixed sensor-board distance, or standardised jig.
+This workflow deliberately does not require a precision gimbal, centre pivot, fixed sensor-board distance, or standardised jig.
 
 ## Practical target
 
@@ -119,6 +119,59 @@ d = nz * D
 
 `D` may be different for every capture. The board does not need to pivot about that point.
 
+## Reducing a stationary capture
+
+`host/python/rangeweave_tof_calibration_capture.py` converts the many ToF frames in one stationary capture into one 64-zone observation for the known-plane solver.
+
+For each producer-native zone it records:
+
+- the number and fraction of valid positive distance returns;
+- the robust **median distance** across the capture;
+- **MAD** (median absolute deviation) around that median;
+- the absolute difference between the first-half and second-half medians as a simple temporal-drift diagnostic.
+
+The solver-facing value is the median, not the mean. A single large range outlier therefore does not pull the calibration observation away from the stable population.
+
+A zone contributes its median only when it reaches the configured valid-return fraction. The current default is:
+
+```text
+min_valid_fraction = 0.90
+```
+
+A lower-coverage zone is emitted as `None`. Nothing is filled, mirrored, interpolated, or copied from a neighbouring zone; the existing independent-zone solver may still use that zone's valid observations from other plane poses.
+
+The current default also requires at least 30 distance-bearing ToF frames. This is a structural minimum rather than the recommended capture duration; a several-second stationary capture is preferable.
+
+### Capture integrity
+
+A calibration capture is structurally rejected when the existing capture/decode evidence reports a known integrity problem, including:
+
+- wrong ToF grid size or producer layout;
+- too few distance-bearing frames;
+- decoder bad frames;
+- semantic decoding errors;
+- sequence gaps;
+- metadata/hash parity errors;
+- any non-zero recorded acquisition-health counter delta.
+
+If a capture contains no usable STATUS interval, that is reported as a warning rather than silently reported as a health PASS.
+
+MAD and half-capture drift are intentionally **reported but not thresholded yet**. Rangeweave does not currently have enough physical board data to justify an arbitrary universal stability cutoff. The first real calibration captures should establish what normal stationary values look like before a default threshold is frozen.
+
+Inspect any existing stationary capture with:
+
+```powershell
+py host/python/inspect_tof_calibration_capture.py <capture>
+```
+
+Add the producer-native diagnostic grids with:
+
+```powershell
+py host/python/inspect_tof_calibration_capture.py <capture> --show-grids
+```
+
+The command returns a non-zero status when structural capture integrity fails.
+
 ## Example calibration session
 
 A builder might use a roughly 700 x 700 mm board, set it securely on a support, and record several poses such as:
@@ -165,13 +218,15 @@ Nothing in capture, replay, raw depth viewing, or nominal 3D projection should r
 
 `KnownPlanePose.centre_on_optical_axis()` is only a convenience for the common `P = (0,0,D)` arrangement. It does not imply a centre pivot or constant `D`.
 
+`host/python/rangeweave_tof_calibration_capture.py` implements the robust stationary-capture reduction and refuses to attach a structurally invalid capture to a known plane.
+
 The workflow does not yet:
 
-- extract robust per-zone distances from a recorded capture;
-- define the calibration manifest format;
+- define the multi-capture calibration manifest format;
 - prescribe how orientation/point measurements are obtained;
 - choose a mandatory target size or construction;
-- define the final fit/held-out validation pose set;
+- run the full solver directly from a manifest;
+- define evidence-based default MAD/drift stability limits;
 - compare a physical calibrated profile against the ST nominal fallback on held-out captures.
 
 Those are the next parts of the optional calibration workflow.
