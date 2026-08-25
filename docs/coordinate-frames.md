@@ -1,8 +1,8 @@
 # Coordinate frames
 
-**Status: `tof_optical` zone orientation and axes frozen; a nominal fallback 64-zone projection profile is defined; IMU/magnetometer/body/world transform conventions remain to be frozen before cross-sensor fusion.**
+**Status: `tof_optical` zone orientation and axes frozen; nominal ToF ray geometry defined; `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen mathematically. Physical IMU/magnetometer package mappings, body-relative orientation estimation, translation and world-frame conventions remain to be validated.**
 
-Named frames planned by the architecture:
+Named frames used by the architecture:
 
 - `tof_optical` - VL53L5CX optical/ray frame.
 - `imu_sensor` - LSM6DSOX package measurement frame.
@@ -21,11 +21,35 @@ It is a **right-handed** optical frame:
 - `+Y`: down in that image;
 - `+Z`: forward from the sensor into the scene.
 
-Therefore `+X × +Y = +Z`.
+Therefore `+X x +Y = +Z`.
 
 This convention is project-owned. It is intentionally stated explicitly rather than inherited implicitly from OpenGL, Android, Open3D, ROS or any other platform API.
 
 Geometric distances and Cartesian coordinates in the reference host layer are expressed in **millimetres** unless an interface explicitly states otherwise.
+
+## `device_body`
+
+`device_body` is a separate right-handed frame attached to the completed sensing head:
+
+- `+X`: intended device right;
+- `+Y`: intended device down;
+- `+Z`: intended mechanical forward direction.
+
+The nominal design makes these axes parallel to `tof_optical`, so an uncalibrated unit uses an identity ToF/body rotation. An individual assembled unit is **not** assumed to achieve that perfectly. Package, PCB, bracket or enclosure alignment can produce a common boresight rotation.
+
+The v1 rotation contract is:
+
+```text
+v_body = R_body_from_tof * v_tof
+```
+
+and is implemented by `host/python/rangeweave_extrinsics.py`.
+
+This is deliberately separate from the 64 independent ToF zone slopes. Intrinsic optical ray geometry remains expressed in `tof_optical`; a common assembly rotation belongs in the rigid extrinsic.
+
+The physical LSM6DSOX package-axis mapping into `device_body` has not yet been experimentally frozen. No IMU reading may silently be treated as a body-frame orientation until that validation is complete.
+
+See [`tof-body-extrinsics.md`](tof-body-extrinsics.md).
 
 ## Producer-native versus physical zone indices
 
@@ -117,18 +141,20 @@ producer ZoneID 63 -> (-362.624, -362.624, 1000) mm
 
 All 64 synthetic wall points retain `Z = 1000 mm` exactly.
 
-The fallback has been exercised against both a real flat-wall capture and a thin diagonal foreground object against a distant wall. Those tests validate the projection pipeline and depth convention. They do not elevate the ST-derived X/Y lattice to per-device calibrated truth; the front-on diagonal-object test visibly exposed the fallback lattice's inward edge curvature, motivating the generic calibration layer planned next.
+The fallback has been exercised against both a real flat-wall capture and a thin diagonal foreground object against a distant wall. Those tests validate the projection pipeline and depth convention. They do not elevate the ST-derived X/Y lattice to per-device calibrated truth; the front-on diagonal-object test visibly exposed the fallback lattice's inward edge curvature, motivating the generic calibration layer.
 
 ## Still to freeze / calibrate
 
-Before IMU/ToF fusion or world-frame reconstruction is merged, we must still document, with diagrams and golden numeric examples:
+Before IMU/ToF fusion or world-frame reconstruction is merged, we must still document and physically validate:
 
-1. `imu_sensor` package axes in the actual board mounting;
-2. `mag_sensor` package axes in the actual board mounting;
-3. `device_body` axes;
-4. quaternion component order, active/passive interpretation and multiplication order;
-5. transform notation (`T_A_B` meaning exactly what?);
-6. portable per-device VL53L5CX geometry profiles, calibration procedure, fit diagnostics and exact optical origin where required;
-7. rigid extrinsics between `tof_optical`, `imu_sensor`, `mag_sensor` and `device_body`.
+1. `imu_sensor` package axes in the actual board mounting and their rotation into `device_body`;
+2. `mag_sensor` package axes in the actual board mounting and their rotation into `device_body`;
+3. quaternion component order, active/passive interpretation and multiplication order;
+4. transform notation (`T_A_B` meaning exactly what?);
+5. the relative-body orientation estimator used by the physical ToF/body boresight calibration;
+6. physical per-device `R_body_from_tof` calibration and held-out validation (the mathematical artifact and synthetic fixed-plane solver now exist);
+7. portable per-device VL53L5CX geometry profiles, physical fit diagnostics and exact optical origin where required;
+8. rigid translation between ToF, IMU, magnetometer and body origins where applications need it;
+9. `world` / `local` frame initialization and update conventions.
 
 No platform-specific API convention may silently become the project convention.

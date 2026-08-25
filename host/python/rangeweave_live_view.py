@@ -6,6 +6,10 @@ updates may be dropped without ever dropping bytes from packets.bin.
 
 The graphical presentation is rotated 180 degrees from producer-native storage to match
 the physically observed sensor orientation. Raw capture ordering is unchanged.
+
+Alongside the colour depth grid, the viewer fits the latest frame to a plane using the
+current nominal ToF geometry and reports that plane's orientation relative to
+``tof_optical``. This is an alignment aid, not a claim about device-body boresight.
 """
 
 from __future__ import annotations
@@ -14,6 +18,9 @@ import importlib.util
 import multiprocessing
 from queue import Empty, Full
 import sys
+
+import rangeweave_geometry as geometry
+import rangeweave_plane_alignment as plane_alignment
 
 
 DISPLAY_ROTATION_DEGREES = 180
@@ -65,6 +72,50 @@ def _configure_axes(ax, rows: int, cols: int) -> None:
     ax.set_yticklabels(list(reversed(range(rows))))
 
 
+def _rx_hint(angle_deg: float) -> str:
+    if abs(angle_deg) < 0.5:
+        return "top/bottom approximately aligned"
+    if angle_deg > 0.0:
+        return "top closer / bottom farther"
+    return "bottom closer / top farther"
+
+
+def _ry_hint(angle_deg: float) -> str:
+    if abs(angle_deg) < 0.5:
+        return "left/right approximately aligned"
+    if angle_deg > 0.0:
+        return "right closer / left farther"
+    return "left closer / right farther"
+
+
+def alignment_panel_text(fit: plane_alignment.PlaneAlignment) -> str:
+    return (
+        "Plane alignment\n"
+        "(relative to tof_optical)\n\n"
+        "Rx  {:+6.2f} deg\n"
+        "    {}\n\n"
+        "Ry  {:+6.2f} deg\n"
+        "    {}\n\n"
+        "fit RMS       {:6.2f} mm\n"
+        "max residual  {:6.2f} mm\n"
+        "valid zones   {:2d} / 64\n\n"
+        "geometry: {}\n\n"
+        "This panel describes the plane\n"
+        "seen by the ToF optical frame.\n"
+        "It does not assume the package\n"
+        "is square to device_body."
+    ).format(
+        fit.rotation_x_deg,
+        _rx_hint(fit.rotation_x_deg),
+        fit.rotation_y_deg,
+        _ry_hint(fit.rotation_y_deg),
+        fit.rms_residual_mm,
+        fit.max_abs_residual_mm,
+        fit.valid_zones,
+        geometry.NOMINAL_ST_PROFILE.role,
+    )
+
+
 def _viewer_process(queue, min_mm: float, max_mm: float) -> None:
     try:
         import matplotlib.pyplot as plt
@@ -73,9 +124,23 @@ def _viewer_process(queue, min_mm: float, max_mm: float) -> None:
         return
 
     plt.ion()
-    fig, ax = plt.subplots(figsize=(7, 7))
+    fig = plt.figure(figsize=(11, 7))
+    layout = fig.add_gridspec(1, 2, width_ratios=(3.2, 2.0))
+    ax = fig.add_subplot(layout[0, 0])
+    info_ax = fig.add_subplot(layout[0, 1])
+    info_ax.axis("off")
+    info_text = info_ax.text(
+        0.02,
+        0.98,
+        "Plane alignment\n\nwaiting for TOF_GRID...",
+        va="top",
+        ha="left",
+        family="monospace",
+        transform=info_ax.transAxes,
+    )
+
     fig.suptitle(
-        "Rangeweave live ToF depth (display rotated {}°)".format(
+        "Rangeweave live ToF depth + plane alignment (display rotated {}°)".format(
             DISPLAY_ROTATION_DEGREES
         )
     )
@@ -121,6 +186,17 @@ def _viewer_process(queue, min_mm: float, max_mm: float) -> None:
                 current_shape = shape
             else:
                 image.set_data(grid)
+
+            try:
+                fit = plane_alignment.fit_plane_from_distances(distances)
+            except (plane_alignment.PlaneAlignmentError, geometry.GeometryError) as exc:
+                info_text.set_text(
+                    "Plane alignment\n"
+                    "(relative to tof_optical)\n\n"
+                    "unavailable:\n{}".format(exc)
+                )
+            else:
+                info_text.set_text(alignment_panel_text(fit))
 
             status.set_text(
                 "latest ToF ready timestamp: {:.3f} s | fixed range {:.0f}..{:.0f} mm".format(
