@@ -37,8 +37,27 @@ def _median(values):
     return statistics.median(float(value) for value in values)
 
 
+def _dominance_ratio(values):
+    ordering = sorted(range(3), key=lambda index: values[index], reverse=True)
+    dominant_index = ordering[0]
+    second = values[ordering[1]]
+    ratio = (
+        math.inf
+        if second <= 0.0 and values[dominant_index] > 0.0
+        else (values[dominant_index] / second if second > 0.0 else 1.0)
+    )
+    return dominant_index, ratio
+
+
 def analyse_imu_samples(samples, *, edge_fraction=DEFAULT_EDGE_FRACTION):
-    """Summarise one hold-move-hold capture without assuming physical axis mapping."""
+    """Summarise one hold-move-hold capture without assuming physical axis mapping.
+
+    For the deliberate one-way axis-validation motion, the reported dominant gyro axis
+    is selected from the magnitude of the *net signed* bias-removed activity. Total
+    absolute activity remains useful as a secondary measure of wobble/noise, but it can
+    overstate cross-axis contamination because oscillatory motion accumulates even when
+    it has little net rotation.
+    """
 
     samples = tuple(samples)
     if len(samples) < 20:
@@ -79,21 +98,10 @@ def analyse_imu_samples(samples, *, edge_fraction=DEFAULT_EDGE_FRACTION):
         absolute_activity.append(sum(abs(value) for value in corrected))
         peak_activity.append(max(abs(value) for value in corrected))
 
-    ordering = sorted(
-        range(3),
-        key=lambda index: absolute_activity[index],
-        reverse=True,
-    )
-    dominant_index = ordering[0]
-    second = absolute_activity[ordering[1]]
-    dominance_ratio = (
-        math.inf
-        if second <= 0.0 and absolute_activity[dominant_index] > 0.0
-        else (
-            absolute_activity[dominant_index] / second
-            if second > 0.0
-            else 1.0
-        )
+    net_activity = [abs(value) for value in signed_activity]
+    dominant_index, net_dominance_ratio = _dominance_ratio(net_activity)
+    absolute_dominant_index, absolute_dominance_ratio = _dominance_ratio(
+        absolute_activity
     )
 
     return {
@@ -107,7 +115,12 @@ def analyse_imu_samples(samples, *, edge_fraction=DEFAULT_EDGE_FRACTION):
         "peak_activity_raw": tuple(peak_activity),
         "dominant_axis": AXES[dominant_index],
         "dominant_sign": 1 if signed_activity[dominant_index] >= 0.0 else -1,
-        "dominance_ratio": dominance_ratio,
+        # Retain the original key for callers/tests; it now describes the net
+        # directional evidence appropriate to this one-way validation procedure.
+        "dominance_ratio": net_dominance_ratio,
+        "net_dominance_ratio": net_dominance_ratio,
+        "absolute_dominant_axis": AXES[absolute_dominant_index],
+        "absolute_dominance_ratio": absolute_dominance_ratio,
     }
 
 
@@ -186,6 +199,10 @@ def _format_vector(values, scale=None, unit="raw"):
     return "X {:+8.4f}  Y {:+8.4f}  Z {:+8.4f} {}".format(*scaled, unit)
 
 
+def _format_ratio(value):
+    return "inf" if math.isinf(value) else f"{value:.2f}x"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -240,24 +257,27 @@ def main() -> int:
     print("Initial stationary accelerometer median")
     print("  raw:              " + _format_vector(result["initial_accel_raw"]))
     if accel_scale is not None:
-        print("  scaled:           " + _format_vector(
-            result["initial_accel_raw"], accel_scale, "g"
-        ))
+        print(
+            "  scaled:           "
+            + _format_vector(result["initial_accel_raw"], accel_scale, "g")
+        )
 
     print("Final stationary accelerometer median")
     print("  raw:              " + _format_vector(result["final_accel_raw"]))
     if accel_scale is not None:
-        print("  scaled:           " + _format_vector(
-            result["final_accel_raw"], accel_scale, "g"
-        ))
+        print(
+            "  scaled:           "
+            + _format_vector(result["final_accel_raw"], accel_scale, "g")
+        )
 
     print()
     print("Stationary gyro bias")
     print("  raw:              " + _format_vector(result["gyro_bias_raw"]))
     if gyro_scale is not None:
-        print("  scaled:           " + _format_vector(
-            result["gyro_bias_raw"], gyro_scale, "deg/s"
-        ))
+        print(
+            "  scaled:           "
+            + _format_vector(result["gyro_bias_raw"], gyro_scale, "deg/s")
+        )
 
     print()
     print("Bias-removed gyro activity over whole capture")
@@ -272,13 +292,24 @@ def main() -> int:
         )
 
     sign = "+" if result["dominant_sign"] > 0 else "-"
-    ratio = result["dominance_ratio"]
-    ratio_text = "inf" if math.isinf(ratio) else f"{ratio:.2f}x"
+    net_ratio = result["net_dominance_ratio"]
+    absolute_ratio = result["absolute_dominance_ratio"]
     print()
-    print(f"  dominant gyro:    {sign}{result['dominant_axis'].upper()}")
-    print(f"  dominance ratio:  {ratio_text} versus next axis")
-    if ratio < 3.0:
-        print("  WARNING:           motion is not strongly isolated to one sensor axis")
+    print(f"  dominant gyro (net): {sign}{result['dominant_axis'].upper()}")
+    print(f"  net dominance:       {_format_ratio(net_ratio)} versus next net axis")
+    print(
+        "  absolute activity:   {} dominant, {} versus next axis".format(
+            result["absolute_dominant_axis"].upper(),
+            _format_ratio(absolute_ratio),
+        )
+    )
+    if net_ratio < 3.0:
+        print("  WARNING:              net rotation is not strongly isolated to one sensor axis")
+    elif absolute_ratio < 3.0:
+        print(
+            "  note:                 secondary/oscillatory cross-axis activity is present, "
+            "but net rotation is well isolated"
+        )
 
     print()
     print(
