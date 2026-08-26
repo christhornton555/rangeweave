@@ -222,6 +222,11 @@ class LiveDepthPublisher:
         self.max_mm = float(max_mm)
         self._queue = None
         self._process = None
+        self._last_distances = None
+
+    @property
+    def alignment_geometry_role(self) -> str:
+        return geometry.NOMINAL_ST_PROFILE.role
 
     def start(self) -> None:
         if importlib.util.find_spec("matplotlib") is None:
@@ -241,15 +246,28 @@ class LiveDepthPublisher:
         self._process.start()
 
     def publish(self, record) -> None:
-        if self._queue is None or record.distance_mm is None:
+        if record.distance_mm is None:
             return
+
+        distances = tuple(int(value) for value in record.distance_mm)
+        self._last_distances = distances
+
+        if self._queue is None:
+            return
+
         message = (
             int(record.rows),
             int(record.cols),
-            tuple(int(value) for value in record.distance_mm),
+            distances,
             int(record.mcu_ready_us),
         )
         replace_latest(self._queue, message)
+
+    def final_alignment(self) -> plane_alignment.PlaneAlignment | None:
+        """Fit the final valid ToF frame remembered by the parent recorder."""
+        if self._last_distances is None:
+            return None
+        return plane_alignment.fit_plane_from_distances(self._last_distances)
 
     def close(self) -> None:
         if self._process is None:

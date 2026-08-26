@@ -163,6 +163,8 @@ def main() -> int:
     started_at_utc = None
     started_monotonic = None
     final_status = "complete"
+    final_live_alignment = None
+    final_live_alignment_error = None
 
     try:
         with serial.Serial(args.port, args.baud, timeout=0.1) as port, packets_path.open("wb") as raw_file:
@@ -225,6 +227,10 @@ def main() -> int:
         cap.write_json_atomic(metadata_path, metadata)
         if live_publisher is not None:
             live_publisher.close()
+            try:
+                final_live_alignment = live_publisher.final_alignment()
+            except Exception as exc:
+                final_live_alignment_error = str(exc)
 
     print("Rangeweave capture complete")
     print("  session:       {}".format(session_dir))
@@ -239,6 +245,21 @@ def main() -> int:
         print("  session_id:    0x{:016X}".format(stats.last_info.session_id))
     for key, value in stats.health_deltas().items():
         print("  delta {:24s} {}".format(key + ":", value))
+
+    if live_publisher is not None:
+        print("  final live plane alignment (final valid ToF frame):")
+        if final_live_alignment is not None:
+            print("    frame:          tof_optical")
+            print("    Rx:             {:+.2f} deg".format(final_live_alignment.rotation_x_deg))
+            print("    Ry:             {:+.2f} deg".format(final_live_alignment.rotation_y_deg))
+            print("    fit RMS:        {:.2f} mm".format(final_live_alignment.rms_residual_mm))
+            print("    max residual:   {:.2f} mm".format(final_live_alignment.max_abs_residual_mm))
+            print("    valid zones:    {} / 64".format(final_live_alignment.valid_zones))
+            print("    geometry:       {}".format(live_publisher.alignment_geometry_role))
+        elif final_live_alignment_error is not None:
+            print("    unavailable:    {}".format(final_live_alignment_error))
+        else:
+            print("    unavailable:    no valid ToF frame was observed")
 
     if final_status != "complete":
         return 2
