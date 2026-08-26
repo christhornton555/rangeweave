@@ -8,6 +8,8 @@ from pathlib import Path
 import statistics
 
 import rangeweave_depth as depth
+import rangeweave_geometry as geometry
+import rangeweave_plane_alignment as plane_alignment
 import rangeweave_tof_calibration_capture as capture_cal
 
 
@@ -42,6 +44,29 @@ def _format_grid(values, *, decimals=1):
     return "\n".join(lines)
 
 
+def _robust_plane_fit(observation):
+    try:
+        return plane_alignment.fit_plane_from_distances(observation.distances_mm)
+    except (plane_alignment.PlaneAlignmentError, geometry.GeometryError):
+        return None
+
+
+def _robust_plane_residuals(observation, fit):
+    residuals = []
+    for zone_id, distance in enumerate(observation.distances_mm):
+        if distance is None or not math.isfinite(float(distance)) or float(distance) <= 0.0:
+            residuals.append(None)
+            continue
+        point = geometry.project_axial_distance_mm(zone_id, float(distance))
+        residuals.append(
+            fit.normal_x * point.x_mm
+            + fit.normal_y * point.y_mm
+            + fit.normal_z * point.z_mm
+            - fit.offset_mm
+        )
+    return tuple(residuals)
+
+
 def print_summary(observation, *, show_grids=False):
     valid_fraction_percent = [100.0 * value for value in observation.valid_fraction]
     health_nonzero = {
@@ -49,6 +74,7 @@ def print_summary(observation, *, show_grids=False):
         for name, delta in observation.health_deltas.items()
         if int(delta) != 0
     }
+    robust_fit = _robust_plane_fit(observation)
 
     print("Rangeweave ToF calibration-capture inspection")
     print(f"  capture:             {observation.input_path}")
@@ -81,6 +107,15 @@ def print_summary(observation, *, show_grids=False):
             _format_metric(_maximum(observation.half_drift_mm)),
         )
     )
+    if robust_fit is not None:
+        print("  robust plane frame:  tof_optical")
+        print(f"  robust plane Rx:     {robust_fit.rotation_x_deg:+.2f} deg")
+        print(f"  robust plane Ry:     {robust_fit.rotation_y_deg:+.2f} deg")
+        print(f"  robust plane RMS:    {robust_fit.rms_residual_mm:.2f} mm")
+        print(f"  robust plane max:    {robust_fit.max_abs_residual_mm:.2f} mm")
+        print(f"  plane geometry:      {geometry.NOMINAL_ST_PROFILE.role}")
+    else:
+        print("  robust plane fit:    unavailable")
     print(
         "  stream/metadata:     {}".format(
             "PASS" if observation.structurally_valid else "FAIL"
@@ -106,6 +141,9 @@ def print_summary(observation, *, show_grids=False):
         print(_format_grid(observation.mad_mm, decimals=1))
         print("\nProducer-native half-capture median drift (mm)")
         print(_format_grid(observation.half_drift_mm, decimals=1))
+        if robust_fit is not None:
+            print("\nProducer-native robust plane residual (mm; nominal-fallback geometry)")
+            print(_format_grid(_robust_plane_residuals(observation, robust_fit), decimals=1))
 
 
 def main() -> int:
@@ -137,7 +175,7 @@ def main() -> int:
     parser.add_argument(
         "--show-grids",
         action="store_true",
-        help="also print producer-native 8x8 median/MAD/drift grids",
+        help="also print producer-native 8x8 median/MAD/drift/plane-residual grids",
     )
     args = parser.parse_args()
 
