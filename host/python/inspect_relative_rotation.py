@@ -85,6 +85,15 @@ def main() -> int:
         )
     )
     parser.add_argument("capture", help="capture directory or packets.bin")
+    parser.add_argument(
+        "--stationary-window-seconds",
+        type=float,
+        default=0.60,
+        help=(
+            "duration of each data-selected stationary window in seconds "
+            "(default: 0.60; estimator allows 0.25..2.0)"
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -100,6 +109,7 @@ def main() -> int:
             clock_syncs,
             ctrl1_xl=ctrl1,
             ctrl2_g=ctrl2,
+            stationary_window_seconds=args.stationary_window_seconds,
         )
     except (OSError, imu.RelativeRotationError) as exc:
         parser.error(str(exc))
@@ -123,6 +133,7 @@ def main() -> int:
     )
     print(f"  IMU mapping:      {result.imu_mapping_role}")
     print("                    body X=-imu X, body Y=-imu Z, body Z=-imu Y")
+    print(f"  stationary span:  {args.stationary_window_seconds:.3f} s requested")
 
     print()
     print("LSM clock fit from CLOCK_SYNC")
