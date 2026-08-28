@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 import rangeweave_capture as cap
+import rangeweave_imu_quality as imu_quality
 import rangeweave_imu_relative as imu
 import rangeweave_protocol as rw
 
@@ -104,6 +105,7 @@ def main() -> int:
             raise imu.RelativeRotationError(
                 "capture is missing LSM CTRL1_XL/CTRL2_G STREAM_INFO metadata"
             )
+        range_usage = imu_quality.analyse_gyro_range(samples, ctrl2_g=ctrl2)
         result = imu.estimate_relative_body_rotation(
             samples,
             clock_syncs,
@@ -111,7 +113,7 @@ def main() -> int:
             ctrl2_g=ctrl2,
             stationary_window_seconds=args.stationary_window_seconds,
         )
-    except (OSError, imu.RelativeRotationError) as exc:
+    except (OSError, imu.RelativeRotationError, imu_quality.ImuQualityError) as exc:
         parser.error(str(exc))
 
     health_nonzero = {
@@ -134,6 +136,35 @@ def main() -> int:
     print(f"  IMU mapping:      {result.imu_mapping_role}")
     print("                    body X=-imu X, body Y=-imu Z, body Z=-imu Y")
     print(f"  stationary span:  {args.stationary_window_seconds:.3f} s requested")
+
+    print()
+    print("Gyro range utilisation")
+    print(f"  configured range: +/-{range_usage.full_scale_dps:.0f} deg/s")
+    print(
+        "  peak body rate:   X {:.1f}  Y {:.1f}  Z {:.1f} deg/s".format(
+            *range_usage.peak_body_dps
+        )
+    )
+    print(
+        "  peak utilisation: X {:.1%}  Y {:.1%}  Z {:.1%}".format(
+            *range_usage.peak_fraction
+        )
+    )
+    if range_usage.rejected:
+        print(
+            "  status:           REJECT — {} reached {:.1%} of configured full scale; "
+            "move more slowly or use a wider gyro range".format(
+                range_usage.max_axis, range_usage.max_fraction
+            )
+        )
+    elif range_usage.warning:
+        print(
+            "  status:           WARNING — {} reached {:.1%} of configured full scale".format(
+                range_usage.max_axis, range_usage.max_fraction
+            )
+        )
+    else:
+        print("  status:           PASS")
 
     print()
     print("LSM clock fit from CLOCK_SYNC")
@@ -192,7 +223,9 @@ def main() -> int:
         "It does not define world attitude or use magnetometer heading."
     )
 
-    return 1 if decoder.frames_bad or stats.sequence_gaps or health_nonzero else 0
+    failed = bool(decoder.frames_bad or stats.sequence_gaps or health_nonzero)
+    failed = failed or range_usage.rejected
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
