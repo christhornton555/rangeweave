@@ -55,7 +55,10 @@ MAG_STATUS_REG = 0x27
 MAG_OUT_X_L = 0x28
 
 LSM_CTRL1_XL_VALUE = 0x48
-LSM_CTRL2_G_VALUE = 0x40
+# 104 Hz, +/-500 dps. The earlier +/-250 dps setting was exceeded during a
+# physically valid mixed-axis boresight motion, so calibration capture now keeps
+# additional rate headroom without changing the ODR.
+LSM_CTRL2_G_VALUE = 0x44
 LSM_CTRL3_C_VALUE = 0x44
 LSM_FIFO_CTRL3_VALUE = 0x44
 LSM_FIFO_CTRL4_VALUE = 0x46
@@ -87,7 +90,7 @@ class PicoClock:
 class SensorStack:
     def __init__(self):
         self.clock = PicoClock()
-        self.imu_bus = I2C(0, sda=Pin(IMU_SDA), scl=Pin(IMU_SCL), freq=IMU_FREQ)
+        self.imu_bus = I2C(0, sda=Pin(IMU_SDA), scl=Pin(IMU_SCL, freq=IMU_FREQ))
         self.tof_bus = I2C(1, sda=Pin(TOF_SDA), scl=Pin(TOF_SCL), freq=TOF_FREQ)
         self.tof = None
         self.freq_fine_raw = 0
