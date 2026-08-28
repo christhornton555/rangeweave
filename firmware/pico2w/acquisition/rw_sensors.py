@@ -90,7 +90,7 @@ class PicoClock:
 class SensorStack:
     def __init__(self):
         self.clock = PicoClock()
-        self.imu_bus = I2C(0, sda=Pin(IMU_SDA), scl=Pin(IMU_SCL, freq=IMU_FREQ))
+        self.imu_bus = I2C(0, sda=Pin(IMU_SDA), scl=Pin(IMU_SCL), freq=IMU_FREQ)
         self.tof_bus = I2C(1, sda=Pin(TOF_SDA), scl=Pin(TOF_SCL), freq=TOF_FREQ)
         self.tof = None
         self.freq_fine_raw = 0
