@@ -8,6 +8,7 @@ from pathlib import Path
 import rangeweave_boresight_sequence as sequence
 import rangeweave_capture as cap
 import rangeweave_extrinsics as ext
+import rangeweave_imu_quality as imu_quality
 import rangeweave_imu_relative as imu
 import rangeweave_protocol as rw
 
@@ -73,6 +74,17 @@ def _motion_estimate(path: Path, stationary_window_seconds: float):
             "motion capture is missing LSM CTRL1_XL/CTRL2_G STREAM_INFO metadata"
         )
     try:
+        range_usage = imu_quality.analyse_gyro_range(samples, ctrl2_g=ctrl2)
+        if range_usage.rejected:
+            raise sequence.BoresightSequenceError(
+                "gyro range exceeded safe boresight limit for {}: {} reached {:.1%} "
+                "of configured +/-{:.0f} deg/s; move more slowly or use a wider gyro range".format(
+                    packets_path,
+                    range_usage.max_axis,
+                    range_usage.max_fraction,
+                    range_usage.full_scale_dps,
+                )
+            )
         result = imu.estimate_relative_body_rotation(
             samples,
             clock_syncs,
@@ -80,11 +92,11 @@ def _motion_estimate(path: Path, stationary_window_seconds: float):
             ctrl2_g=ctrl2,
             stationary_window_seconds=stationary_window_seconds,
         )
-    except imu.RelativeRotationError as exc:
+    except (imu.RelativeRotationError, imu_quality.ImuQualityError) as exc:
         raise sequence.BoresightSequenceError(
             f"relative rotation failed for {packets_path}: {exc}"
         ) from exc
-    return packets_path, result
+    return packets_path, result, range_usage
 
 
 def _fmt_matrix(matrix):
@@ -138,12 +150,23 @@ def main() -> int:
         help="stationary-window duration for all motion estimates (default: 0.60)",
     )
     parser.add_argument(
+        "--min-rotation-deg",
+        type=float,
+        default=5.0,
+        help="reject a motion smaller than this angle (default: 5.0 deg)",
+    )
+    parser.add_argument(
         "--max-gravity-closure-deg",
         type=float,
         default=2.0,
         help="reject a motion whose independent gravity closure exceeds this value (default: 2.0)",
     )
     args = parser.parse_args()
+
+    if float(args.min_rotation_deg) <= 0.0:
+        parser.error("--min-rotation-deg must be positive")
+    if float(args.max_gravity_closure_deg) <= 0.0:
+        parser.error("--max-gravity-closure-deg must be positive")
 
     try:
         reference_from_body = ext.identity_matrix()
@@ -155,9 +178,14 @@ def main() -> int:
 
         motion_results = []
         for index, (motion_arg, pose_arg) in enumerate(args.step, start=1):
-            motion_path, motion = _motion_estimate(
+            motion_path, motion, range_usage = _motion_estimate(
                 Path(motion_arg), args.stationary_window_seconds
             )
+            if motion.rotation_angle_deg < float(args.min_rotation_deg):
+                raise sequence.BoresightSequenceError(
+                    f"step {index} rotation {motion.rotation_angle_deg:.3f} deg is below "
+                    f"minimum {float(args.min_rotation_deg):.3f} deg"
+                )
             if motion.gravity_closure_error_deg > float(args.max_gravity_closure_deg):
                 raise sequence.BoresightSequenceError(
                     f"step {index} gravity closure {motion.gravity_closure_error_deg:.3f} deg "
@@ -170,7 +198,7 @@ def main() -> int:
                 Path(pose_arg), reference_from_body, label=f"step-{index}"
             )
             poses.append(pose)
-            motion_results.append((motion_path, motion))
+            motion_results.append((motion_path, motion, range_usage))
 
     except (OSError, sequence.BoresightSequenceError) as exc:
         parser.error(str(exc))
@@ -179,11 +207,18 @@ def main() -> int:
     print(f"  observations:     {len(poses)}")
     print(f"  motion steps:     {len(motion_results)}")
     print(f"  stationary span:  {args.stationary_window_seconds:.3f} s")
+    print(f"  minimum motion:   {float(args.min_rotation_deg):.3f} deg")
     print(f"  gravity gate:     {float(args.max_gravity_closure_deg):.3f} deg")
+    print(
+        "  gyro range gate:  warn {:.0%}, reject {:.0%} of configured full scale".format(
+            imu_quality.DEFAULT_GYRO_WARNING_FRACTION,
+            imu_quality.DEFAULT_GYRO_REJECT_FRACTION,
+        )
+    )
     print()
 
     _print_pose(0, poses[0])
-    for index, ((motion_path, motion), pose) in enumerate(
+    for index, ((motion_path, motion, range_usage), pose) in enumerate(
         zip(motion_results, poses[1:]), start=1
     ):
         print()
@@ -196,6 +231,15 @@ def main() -> int:
         )
         print(f"  rotation angle:   {motion.rotation_angle_deg:.3f} deg")
         print(f"  gravity closure:  {motion.gravity_closure_error_deg:.3f} deg")
+        print(
+            "  gyro range:       +/-{:.0f} deg/s; peak {:.1f} deg/s on {}; {:.1%} used{}".format(
+                range_usage.full_scale_dps,
+                range_usage.max_peak_dps,
+                range_usage.max_axis,
+                range_usage.max_fraction,
+                " WARNING" if range_usage.warning else "",
+            )
+        )
         print(
             "  stationary gyro:  {:.3f} / {:.3f} deg/s robust spread".format(
                 motion.initial_stationary.gyro_spread_dps,
