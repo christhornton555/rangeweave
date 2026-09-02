@@ -1,12 +1,14 @@
 # ToF geometry profiles and plane calibration
 
-**Status: generic host calibration framework. No producer/capture semantics are changed.**
+**Status: generic host calibration framework for optional per-device VL53L5CX intrinsic/ray refinement. No producer/capture semantics are changed.**
 
 This document defines how Rangeweave represents and estimates per-device 8x8 ToF zone geometry above the lossless producer-native capture layer.
 
-Per-device calibration is **optional**. The built-in ST-derived nominal profile remains the normal out-of-box geometry for a newly assembled Rangeweave system. Builders only need this calibration workflow when they want to characterise their particular sensor and refine geometric accuracy further.
+Per-device intrinsic calibration is **optional**. The built-in ST-derived nominal profile remains the normal out-of-box geometry for a newly assembled Rangeweave system. Builders only need this workflow when they want to characterise their particular sensor and refine geometric accuracy further.
 
-The central rule is deliberately permissive:
+This intrinsic task is distinct from ToF/body **boresight** calibration. Intrinsic calibration estimates 64 zone rays inside `tof_optical`; boresight estimates one rigid `R_body_from_tof` rotation for the assembled head. See [`boresight-calibration.md`](boresight-calibration.md) for the latter.
+
+The central intrinsic-calibration rule is deliberately permissive:
 
 > Rangeweave defines the coordinate frame and calibration procedure. It does not require a physical sensor's 64-zone lattice to be symmetric, evenly spaced, monotonic, or bowed in any particular direction.
 
@@ -22,7 +24,7 @@ Each producer-native ZoneID stores one independent slope pair:
 (x_per_z, y_per_z)
 ```
 
-The existing VL53L5CX distance contract is unchanged:
+The VL53L5CX distance contract is:
 
 ```text
 X = x_per_z[zone] * distance_mm
@@ -30,16 +32,16 @@ Y = y_per_z[zone] * distance_mm
 Z = distance_mm
 ```
 
-The default built-in profile remains:
+The default profile remains:
 
 ```text
 name: vl53l5cx-st-plane-algo-2022-corrected-yaw
 role: nominal-fallback
 ```
 
-It is useful without any builder calibration, but it is not a regularisation target and calibrated profiles are not required to resemble it.
+It is useful without builder calibration, but it is not a regularisation target and calibrated profiles are not required to resemble it.
 
-Projection functions accept an optional explicit profile. Omitting it uses the ST nominal fallback.
+Projection functions accept an optional explicit profile. Omitting it uses the nominal fallback.
 
 ## Portable `tof_geometry.json`
 
@@ -55,7 +57,7 @@ rows:           8
 cols:           8
 ```
 
-The JSON contains all 64 producer-native zones independently. A shortened structural example is:
+A complete artifact contains all 64 producer-native ZoneIDs independently. Example structure:
 
 ```json
 {
@@ -77,7 +79,7 @@ The JSON contains all 64 producer-native zones independently. A shortened struct
 }
 ```
 
-A real v1 artifact must contain exactly 64 unique ZoneIDs `0..63`; the abbreviated example above is illustrative only.
+A real v1 artifact must contain exactly 64 unique ZoneIDs `0..63`; the shortened example is illustrative only.
 
 Use:
 
@@ -93,11 +95,9 @@ py host/python/view_point_cloud.py <capture> `
   --geometry-profile calibration\tof_geometry.json
 ```
 
-The summary and plot title identify the selected profile name and role.
-
 ## Known-plane calibration model
 
-`host/python/rangeweave_tof_calibration.py` estimates every ZoneID independently from observations of known planes.
+`host/python/rangeweave_tof_calibration.py` estimates every ZoneID independently from observations of **known planes**.
 
 For one plane in `tof_optical`:
 
@@ -105,7 +105,7 @@ For one plane in `tof_optical`:
 nx*X + ny*Y + nz*Z = d
 ```
 
-where `(nx, ny, nz)` is the plane normal and `d` is its offset from the optical origin. Substituting the Rangeweave projection model gives, for each zone measurement `Z`:
+where `(nx, ny, nz)` is the measured plane normal and `d` is its measured offset from the optical origin. Substituting the Rangeweave projection model gives, for each zone measurement `Z`:
 
 ```text
 nx*x_per_z + ny*y_per_z = d/Z - nz
@@ -113,25 +113,21 @@ nx*x_per_z + ny*y_per_z = d/Z - nz
 
 That is linear in the two unknown zone slopes. Multiple plane poses therefore give an ordinary two-parameter least-squares problem for each ZoneID.
 
-The 64 zones are solved separately. There is no neighbour smoothing, symmetry constraint, ST-LUT prior, or common radial-distortion model in this calibration method.
+The 64 zones are solved separately. There is no neighbour smoothing, symmetry constraint, ST-LUT prior, or common radial-distortion model.
 
 ## Required pose diversity
 
-The calibration planes must constrain both X and Y.
+The calibration planes must constrain both X and Y. Several one-axis-only tilts cannot determine the other slope component; the solver rejects rank-deficient sets rather than inventing a value.
 
-For example, several one-axis-only tilts cannot determine the other slope component; the solver detects the rank-deficient system and rejects it rather than inventing a value.
-
-A practical calibration set should therefore contain independent tilts about both image axes, preferably with redundancy and one or more mixed tilts.
+A practical intrinsic dataset should contain independent tilts about both image axes, redundancy, and preferably one or more mixed tilts. Reserve one independent measured pose as held-out validation.
 
 A fronto-parallel plane is useful for range/bias diagnostics but contributes no X/Y ray-direction constraint by itself.
 
 ## Invalid measurements
 
-A calibration plane carries 64 axial-Z measurements in producer-native ZoneID order.
+For an individual zone, `None`, non-finite, zero or negative distances are skipped. Calibration can still succeed if the remaining valid planes independently constrain both slopes.
 
-For an individual zone, `None`, non-finite, zero, or negative distances are skipped. Calibration can still succeed for that zone if the remaining valid planes independently constrain both slopes.
-
-The current producer does not yet expose VL53L5CX `target_status`, so the physical calibration workflow currently has the same quality-information limitation as the existing point-cloud pipeline. Target-status acquisition remains a separate refinement.
+The current producer does not expose VL53L5CX `target_status`, so the physical intrinsic workflow has the same quality-information limitation as the existing point-cloud pipeline. Target-status acquisition remains a separate refinement.
 
 ## Fit diagnostics
 
@@ -142,42 +138,30 @@ For every zone the solver records:
 - RMS residual to the known planes in millimetres;
 - maximum absolute plane residual in millimetres.
 
-The calibrated profile metadata stores all per-zone residual summaries plus aggregate maxima/means.
-
-Because plane normals are normalised internally, those residuals are geometric plane-distance errors in millimetres.
+The calibrated profile metadata stores per-zone residual summaries plus aggregate diagnostics. Plane normals are normalized internally, so these residuals are geometric plane-distance errors in millimetres.
 
 ## Synthetic regression requirement
 
-CI deliberately calibrates a synthetic 64-zone sensor whose lattice is:
+CI calibrates a synthetic 64-zone sensor whose lattice deliberately differs from the ST fallback: outward-bowing, asymmetric and cross-coupled. The solver must recover all 128 independent slope values and predict a separate held-out plane. A rank-deficient one-axis set must be rejected.
 
-- outward-bowing rather than matching the ST fallback;
-- asymmetric;
-- offset/cross-coupled so opposite zones are not forced mirror images.
-
-Five known tilted planes are generated from that synthetic truth. The solver must recover all 128 independent slope values to floating-point precision and predict a separate held-out plane.
-
-This test exists specifically to prevent a future implementation from accidentally introducing an ST-profile prior or symmetry assumption.
-
-CI also checks that a rank-deficient all-one-axis plane set is rejected.
+This protects against accidentally introducing a symmetry assumption or ST-profile prior.
 
 ## Calibration versus range correction
 
-This geometry solver estimates only `(X/Z, Y/Z)` ray slopes. It does not fit range scale, range offset, per-zone Z bias, cover-window effects, or the optical-centre translation.
-
-Those quantities should remain separate calibration layers. In particular, Rangeweave should not bend a zone ray merely to compensate for an axial range bias.
+This geometry solver estimates only `(X/Z, Y/Z)` ray slopes. It does not fit range scale/offset, per-zone Z bias, cover-window effects or optical-centre translation. Those remain separate calibration layers; do not bend a zone ray merely to compensate for axial range bias.
 
 ## Physical capture workflow
 
-The optional physical workflow is documented in [`tof-calibration-plane-workflow.md`](tof-calibration-plane-workflow.md).
+The physical intrinsic workflow is documented in [`tof-calibration-plane-workflow.md`](tof-calibration-plane-workflow.md). It defines a general **measured known-plane pose** rather than requiring a particular fixture.
 
-It defines a general measured known-plane pose rather than requiring a particular jig. `host/python/rangeweave_tof_calibration_capture.py` reduces one stationary canonical capture to robust per-zone median distances, reports valid coverage, MAD and temporal half-drift, and preserves existing stream/metadata/health evidence before that observation is admitted to the plane solver.
+`host/python/rangeweave_tof_calibration_capture.py` reduces one stationary canonical capture to robust per-zone median distances, reports valid coverage, MAD and temporal half-drift, and preserves stream/metadata/health evidence before the observation is admitted to the plane solver.
 
-The reducer can be exercised independently before a dedicated calibration board is available:
+The reducer can be exercised against any suitable stationary flat-plane capture before building a dedicated measured intrinsic-calibration fixture:
 
 ```powershell
 py host/python/inspect_tof_calibration_capture.py <stationary-capture> --show-grids
 ```
 
-This gives an empirical baseline for ordinary stationary MAD and half-capture drift on the current hardware.
+That gives an empirical baseline for ordinary zone MAD and half-capture drift on the current hardware.
 
-The remaining workflow work is to define a multi-capture manifest, run the solver from that manifest, and perform held-out physical validation against the nominal fallback.
+The remaining intrinsic workflow work is to define the final multi-capture manifest/artifact promotion path and perform held-out physical validation against the nominal fallback.
