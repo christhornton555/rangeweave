@@ -161,18 +161,47 @@ def main() -> int:
         default=2.0,
         help="reject a motion whose independent gravity closure exceeds this value (default: 2.0)",
     )
+    parser.add_argument(
+        "--max-plane-rms-mm",
+        type=float,
+        default=sequence.DEFAULT_MAX_PLANE_RMS_MM,
+        help="reject a stationary pose above this plane RMS (default: 10 mm)",
+    )
+    parser.add_argument(
+        "--max-plane-residual-mm",
+        type=float,
+        default=sequence.DEFAULT_MAX_PLANE_RESIDUAL_MM,
+        help="reject a stationary pose above this max plane residual (default: 30 mm)",
+    )
+    parser.add_argument(
+        "--max-half-drift-mm",
+        type=float,
+        default=sequence.DEFAULT_MAX_HALF_DRIFT_MM,
+        help="reject a stationary pose above this max half-capture drift (default: 10 mm)",
+    )
     args = parser.parse_args()
 
     if float(args.min_rotation_deg) <= 0.0:
         parser.error("--min-rotation-deg must be positive")
     if float(args.max_gravity_closure_deg) <= 0.0:
         parser.error("--max-gravity-closure-deg must be positive")
+    try:
+        pose_limits = sequence.BoresightPoseQualityLimits(
+            max_plane_rms_mm=args.max_plane_rms_mm,
+            max_plane_residual_mm=args.max_plane_residual_mm,
+            max_half_drift_mm=args.max_half_drift_mm,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
 
     try:
         reference_from_body = ext.identity_matrix()
         poses = [
             sequence.stationary_pose_from_capture(
-                Path(args.baseline), reference_from_body, label="baseline"
+                Path(args.baseline),
+                reference_from_body,
+                label="baseline",
+                quality_limits=pose_limits,
             )
         ]
 
@@ -195,7 +224,10 @@ def main() -> int:
                 reference_from_body, motion.reference_from_body
             )
             pose = sequence.stationary_pose_from_capture(
-                Path(pose_arg), reference_from_body, label=f"step-{index}"
+                Path(pose_arg),
+                reference_from_body,
+                label=f"step-{index}",
+                quality_limits=pose_limits,
             )
             poses.append(pose)
             motion_results.append((motion_path, motion, range_usage))
@@ -213,6 +245,14 @@ def main() -> int:
         "  gyro range gate:  warn {:.0%}, reject {:.0%} of configured full scale".format(
             imu_quality.DEFAULT_GYRO_WARNING_FRACTION,
             imu_quality.DEFAULT_GYRO_REJECT_FRACTION,
+        )
+    )
+    print(
+        "  ToF pose gates:   RMS <= {:.1f} mm; max residual <= {:.1f} mm; "
+        "max half-drift <= {:.1f} mm".format(
+            pose_limits.max_plane_rms_mm,
+            pose_limits.max_plane_residual_mm,
+            pose_limits.max_half_drift_mm,
         )
     )
     print()
