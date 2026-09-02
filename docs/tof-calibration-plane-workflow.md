@@ -1,42 +1,40 @@
-# Optional ToF known-plane calibration workflow
+# Optional ToF intrinsic known-plane calibration workflow
 
-**Status: candidate physical-workflow convention and capture reducer for Phase 2 calibration.**
+**Status: implemented candidate physical-pose convention and robust stationary-capture reducer for optional per-device VL53L5CX ray/geometry refinement. This is not the ToF/body boresight workflow.**
 
-Rangeweave does **not** require per-device ToF geometry calibration before use. The normal out-of-box path uses the built-in ST-derived `nominal-fallback` geometry profile. The workflow described here is an optional precision-refinement step for builders who want to characterise their particular sensor and generate a per-device `tof_geometry.json` profile.
+Rangeweave does **not** require per-device ToF geometry calibration before use. The normal path uses the built-in ST-derived `nominal-fallback` geometry profile. This workflow is an optional precision-refinement step for builders who want to characterise their particular VL53L5CX and generate a per-device `tof_geometry.json` profile.
 
-This workflow deliberately does not require a precision gimbal, centre pivot, fixed sensor-board distance, or standardised jig.
+For the separate task of aligning the complete ToF assembly to `device_body`, use [`boresight-calibration.md`](boresight-calibration.md). Boresight calibration normally uses a fixed wall and does **not** require measured wall orientation.
+
+## What this intrinsic workflow estimates
+
+The ToF geometry profile describes the per-zone rays **inside `tof_optical`**. A common rigid package/assembly rotation does not belong here; it belongs in `R_body_from_tof`.
+
+The intrinsic solver needs observations of known physical planes so it can refine independent zone geometry without assuming the nominal ST lattice is exact.
 
 ## Practical target
 
-A useful physical target is simply a reasonably flat board large enough to fill the sensor field of view at the chosen calibration distance.
+A reasonably flat board is a convenient intrinsic-calibration target because its orientation and a point on its plane can be measured independently.
 
-The recommended convenient target size is approximately **600 mm x 600 mm**. A common **24 x 24 inch** board (609.6 x 609.6 mm) is equivalent for this purpose. This size was chosen as a practical open-source default because sheet material around 600/610 mm (2 ft) wide is widely available and substantially easier to store and transport than the next common full-sheet sizes.
+A roughly **600 mm x 600 mm / 24 x 24 inch** board remains a useful portable option, but it is not a mathematical requirement. A larger known plane is equally valid. The target must be large enough that the zones used by a capture remain on the same measured plane.
 
-Target size is **not** part of the calibration mathematics. A larger or smaller board is valid provided the chosen sensor distance and board poses keep the required ToF zones on the flat target surface.
+For the current nominal profile, 500-600 mm sensor-to-target distances are convenient starting values. Exact distance is not fixed by the solver; the measured plane point for each capture is what matters.
 
-For the current built-in nominal VL53L5CX profile, a board-centre distance of 600 mm gives a fronto-parallel outer-zone footprint of about 435 x 435 mm. The example mixed pose `Rx +12 deg, Ry +10 deg` occupies about 483 x 479 mm in the board plane, with the closest nominal outer-zone intersection about 267 mm from board centre. A 600 mm square therefore still contains the nominal footprint at that pose, although with only about 33 mm minimum edge margin.
+Unlike boresight calibration, this intrinsic workflow requires **known plane geometry for each capture**. A wall is only useful here if its relevant orientation/point can be measured sufficiently well for the intended intrinsic calibration.
 
-For practical calibration, starting with the marked board centre around **500-550 mm** from the sensor gives more useful edge margin. If a particular sensor has a wider or outward-bowing lattice, move the sensor/board closer until all required zones land comfortably inside the board. The actual measured board pose and point are what enter the solver; the nominal starting distance is not a calibration constant.
+## Required observation for each capture
 
-The board needs a support that can hold it stationary while a short capture is recorded and allow it to be set to several accurately measured orientations. The support may be as simple or elaborate as the builder finds convenient: clamps, wedges, a hinged stand, an adjustable easel, a photographic support, or a purpose-built fixture are all compatible with the software model.
+Each intrinsic calibration pose needs:
 
-The important requirements are measurement and stability, not a particular mechanical design.
+1. plane orientation in the frozen `tof_optical` frame;
+2. one known point on that plane, expressed in `tof_optical` millimetres;
+3. one stationary Rangeweave capture containing the ToF observations.
 
-## What must be known for each capture
+The known point may move between captures. No centre pivot or constant sensor-target distance is required.
 
-Each calibration capture needs:
+## Frozen frame and orientation convention
 
-1. the board orientation in the frozen `tof_optical` frame;
-2. one known point that lies on the board plane, expressed in `tof_optical` millimetres;
-3. the stationary Rangeweave capture containing the 64 ToF zone measurements.
-
-The known point will normally be a marked point near the board centre, but mathematically it may be any measured point on the plane.
-
-The known point may move between captures. The board does **not** have to rotate about that point, and the sensor-board distance does **not** have to remain constant.
-
-## Frozen frame
-
-All quantities are expressed in the project-owned `tof_optical` frame:
+`tof_optical` is right-handed:
 
 ```text
 +X = scene/image right
@@ -44,34 +42,25 @@ All quantities are expressed in the project-owned `tof_optical` frame:
 +Z = forward from the sensor into the scene
 ```
 
-The frame is right-handed. For this workflow, the origin remains the nominal VL53L5CX optical centre used by the existing geometry layer. Exact per-device optical-centre translation is a separate later calibration problem.
-
-## Orientation convention
-
-To avoid ambiguous uses of `pitch` and `yaw`, the executable v1 convention is named:
+The executable v1 known-plane convention is:
 
 ```text
 tof-optical-known-point-rx-then-ry-v1
 ```
 
-A fronto-parallel board has canonical normal:
+A fronto-parallel plane has canonical normal:
 
 ```text
 n0 = (0, 0, +1)
 ```
 
-The normal is transformed by active, right-handed rotations about the fixed `tof_optical` axes in this order:
-
-1. rotate about `+X` by `rotation_x_deg`;
-2. rotate the result about `+Y` by `rotation_y_deg`.
-
-Equivalently:
+Apply active right-handed rotations about the fixed `tof_optical` axes in this order:
 
 ```text
-n = Ry(rotation_y_deg) * Rx(rotation_x_deg) * (0, 0, 1)
+n = Ry(rotation_y_deg) * Rx(rotation_x_deg) * n0
 ```
 
-For angles `rx` and `ry` in radians:
+For `rx`, `ry` in radians:
 
 ```text
 nx = sin(ry) * cos(rx)
@@ -79,112 +68,72 @@ ny = -sin(rx)
 nz = cos(ry) * cos(rx)
 ```
 
-Mixed-axis rotations are non-commutative, so the order is project policy rather than interchangeable wording.
+Because `+Y` points down:
 
-Because `tof_optical +Y` points downward:
+- positive `Rx` makes the lower `+Y` side farther from the sensor;
+- positive `Ry` makes the right `+X` side closer to the sensor.
 
-- positive `Rx` makes the board's lower `+Y` side farther from the sensor;
-- positive `Ry` makes the board's right `+X` side closer to the sensor.
-
-These signs and the mixed-axis order are regression-tested.
+Mixed-axis order is non-commutative and therefore part of the versioned convention.
 
 ## Plane position
 
-The calibration solver consumes a plane:
+The solver consumes:
 
 ```text
 nx*X + ny*Y + nz*Z = d
 ```
 
-If a measured point on the board is:
-
-```text
-P = (Px, Py, Pz)
-```
-
-then:
+For a known point `P = (Px, Py, Pz)` on the plane:
 
 ```text
 d = n dot P
-  = nx*Px + ny*Py + nz*Pz
 ```
 
-This is the general workflow. There is no fixed-pivot assumption.
-
-### Simple centre-on-axis case
-
-A convenient setup is to place a marked board-centre point approximately on the optical axis and measure its distance `D` from the nominal optical origin:
+A common convenience is a measured point approximately on the optical axis:
 
 ```text
 P = (0, 0, D)
-```
-
-Then:
-
-```text
 d = nz * D
 ```
 
-`D` may be different for every capture. The board does not need to pivot about that point.
+`D` may differ between captures.
 
 ## Reducing a stationary capture
 
-`host/python/rangeweave_tof_calibration_capture.py` converts the many ToF frames in one stationary capture into one 64-zone observation for the known-plane solver.
+`host/python/rangeweave_tof_calibration_capture.py` reduces many ToF frames into one robust 64-zone observation.
 
-For each producer-native zone it records:
+For every producer-native zone it records:
 
-- the number and fraction of valid positive distance returns;
-- the robust **median distance** across the capture;
-- **MAD** (median absolute deviation) around that median;
-- the absolute difference between the first-half and second-half medians as a simple temporal-drift diagnostic.
+- valid positive-return count/fraction;
+- median distance;
+- MAD (median absolute deviation);
+- first-half versus second-half median drift.
 
-The solver-facing value is the median, not the mean. A single large range outlier therefore does not pull the calibration observation away from the stable population.
+The solver-facing value is the median. A zone below the configured valid-return fraction (default `0.90`) becomes `None`; it is not interpolated, mirrored or filled from neighbours.
 
-A zone contributes its median only when it reaches the configured valid-return fraction. The current default is:
+The reducer currently requires at least 30 distance-bearing ToF frames and structurally rejects known stream/capture integrity problems such as decoder errors, sequence gaps, bad metadata/hash parity, wrong grid/layout or non-zero acquisition-health deltas.
 
-```text
-min_valid_fraction = 0.90
-```
+## Stability metrics: generic reducer versus boresight gates
 
-A lower-coverage zone is emitted as `None`. Nothing is filled, mirrored, interpolated, or copied from a neighbouring zone; the existing independent-zone solver may still use that zone's valid observations from other plane poses.
+The generic intrinsic-capture reducer **reports** MAD and half-capture drift but does not impose a universal sensor-wide stability threshold. That remains intentional: an intrinsic calibration campaign may need different evidence-based acceptance limits.
 
-The current default also requires at least 30 distance-bearing ToF frames. This is a structural minimum rather than the recommended capture duration; a several-second stationary capture is preferable.
+The separate boresight workflow now applies its own empirical physical-quality gates (`10 mm` plane RMS, `30 mm` max plane residual, `10 mm` maximum half-drift). Those are boresight workflow safeguards, not generic VL53L5CX intrinsic-calibration specifications.
 
-### Capture integrity
-
-A calibration capture is structurally rejected when the existing capture/decode evidence reports a known integrity problem, including:
-
-- wrong ToF grid size or producer layout;
-- too few distance-bearing frames;
-- decoder bad frames;
-- semantic decoding errors;
-- sequence gaps;
-- metadata/hash parity errors;
-- any non-zero recorded acquisition-health counter delta.
-
-If a capture contains no usable STATUS interval, that is reported as a warning rather than silently reported as a health PASS.
-
-MAD and half-capture drift are intentionally **reported but not thresholded yet**. Rangeweave does not currently have enough physical board data to justify an arbitrary universal stability cutoff. The first real calibration captures should establish what normal stationary values look like before a default threshold is frozen.
-
-Inspect any existing stationary capture with:
+Inspect an intrinsic candidate capture with:
 
 ```powershell
 py host/python/inspect_tof_calibration_capture.py <capture>
 ```
 
-Add the producer-native diagnostic grids with:
+Add diagnostic grids with:
 
 ```powershell
 py host/python/inspect_tof_calibration_capture.py <capture> --show-grids
 ```
 
-The command returns a non-zero status when structural capture integrity fails.
+## Example intrinsic dataset
 
-Before taking the dedicated calibration-board dataset, it is useful to run this command against an existing stationary flat-wall capture. That validates the reduction path and gives an initial empirical baseline for ordinary zone MAD and half-capture drift on the current hardware without yet fitting a calibration profile.
-
-## Example calibration session
-
-A builder might use a roughly 600 x 600 mm / 24 x 24 inch board, set it securely on a support, and record several poses such as:
+A builder might measure several known plane poses such as:
 
 ```text
 Rx +15 deg, Ry   0 deg
@@ -194,15 +143,13 @@ Rx   0 deg, Ry -15 deg
 Rx +12 deg, Ry +10 deg
 ```
 
-The exact angles are not requirements. Measured values such as `+14.6 deg` are preferable to pretending a physical setup achieved exactly `+15 deg`.
+The exact numbers are not requirements. Use measured values rather than pretending a fixture achieved nominal angles exactly.
 
-At least one additional pose should be reserved as a held-out validation capture and not used to fit the profile.
+Reserve at least one independent pose for held-out validation rather than fitting every observation.
 
-A fronto-parallel capture is useful for diagnostics but, by itself, does not constrain the X/Y ray slopes.
+A fronto-parallel pose is useful diagnostically but does not by itself constrain the X/Y ray slopes.
 
 ## Optional, not prerequisite
-
-The expected builder path is:
 
 ```text
 assemble Rangeweave
@@ -214,29 +161,18 @@ use built-in ST nominal fallback
        |
        no / want maximum accuracy
        v
-optional known-plane calibration
+optional intrinsic known-plane calibration
        |
        v
 tof_geometry.json
 ```
 
-Nothing in capture, replay, raw depth viewing, or nominal 3D projection should require a calibration artifact. A calibrated profile is an optional replacement for the fallback when a builder wants to dial in per-device geometry.
+Capture, replay, raw depth viewing and nominal projection must continue to work without a per-device intrinsic artifact.
 
 ## Reference implementation
 
-`host/python/rangeweave_tof_calibration_workflow.py` implements the physical-pose convention as `KnownPlanePose` and converts a 64-zone stationary observation into the solver's existing `CalibrationPlane` representation.
+- `host/python/rangeweave_tof_calibration_workflow.py` implements `KnownPlanePose` and the v1 pose convention.
+- `host/python/rangeweave_tof_calibration_capture.py` implements robust stationary reduction.
+- `host/python/rangeweave_tof_calibration.py` contains the per-zone known-plane solver.
 
-`KnownPlanePose.centre_on_optical_axis()` is only a convenience for the common `P = (0,0,D)` arrangement. It does not imply a centre pivot or constant `D`.
-
-`host/python/rangeweave_tof_calibration_capture.py` implements the robust stationary-capture reduction and refuses to attach a structurally invalid capture to a known plane.
-
-The workflow does not yet:
-
-- define the multi-capture calibration manifest format;
-- prescribe how orientation/point measurements are obtained;
-- choose a mandatory target construction;
-- run the full solver directly from a manifest;
-- define evidence-based default MAD/drift stability limits;
-- compare a physical calibrated profile against the ST nominal fallback on held-out captures.
-
-Those are the next parts of the optional calibration workflow.
+The intrinsic workflow still does not define the final multi-capture manifest/artifact promotion path or a universal physical fixture. Those remain future refinement tasks.
