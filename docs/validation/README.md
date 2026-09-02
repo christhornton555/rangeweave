@@ -4,8 +4,11 @@ This directory contains intentionally published reference runs and summaries use
 
 ## Current evidence
 
-- [`reference-unit-v0.5.md`](reference-unit-v0.5.md) - summary of the current reference unit.
-- [`pico2w-reference-run-v0.5.txt`](pico2w-reference-run-v0.5.txt) - full console output supplied by the validated run.
+- [`reference-unit-v0.5.md`](reference-unit-v0.5.md) - validated reference sensor-stack summary.
+- [`pico2w-reference-run-v0.5.txt`](pico2w-reference-run-v0.5.txt) - full console output from the reference self-test.
+- [`boresight-reference-rig-2026-09.md`](boresight-reference-rig-2026-09.md) - physical reference-rig evidence for IMU/body axis mapping, relative rotation, the +/-250 deg/s failure, the switch to +/-500 deg/s, stationary-ToF quality gates and the provisional fixed-plane boresight solve.
+- [`provenance.md`](provenance.md) - hashes linking the published diagnostic baseline to the original validated candidate.
+- [`runtime-environment.md`](runtime-environment.md) - validated Pico runtime fingerprint and UF2 provenance note.
 
 ## Reproduction reports
 
@@ -25,5 +28,14 @@ When testing another physical unit, record at minimum:
 
 Do not reject a unit because its oscillator-derived ODR differs from the reference number if the structural/timing invariants pass.
 
-- [`provenance.md`](provenance.md) - hashes linking the public diagnostic baseline to the exact validated local v0.5 candidate.
-- [`runtime-environment.md`](runtime-environment.md) - validated Pico runtime fingerprint and the pre-Git UF2 filename/provenance note.
+For calibration/boresight reproduction also retain:
+
+- raw capture directories (`metadata.json`, `packets.bin`, `notes.txt`);
+- capture SHA-256 values;
+- actual `STREAM_INFO` sensor/register configuration;
+- physical `imu_sensor -> device_body` mounting/mapping;
+- target/setup description;
+- all quality-gate outputs, including gyro range utilisation, gravity closure, ToF plane residuals and half-capture drift;
+- which observations were fit and which were reserved as held-out validation.
+
+Reference-rig calibration parameters must not be assumed to transfer unchanged to a differently assembled unit.
