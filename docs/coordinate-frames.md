@@ -1,31 +1,27 @@
 # Coordinate frames
 
-**Status: `tof_optical` zone orientation and axes frozen; nominal ToF ray geometry defined; `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen mathematically. Physical IMU/magnetometer package mappings, body-relative orientation estimation, translation and world-frame conventions remain to be validated.**
+**Status:** `tof_optical` axes/zone orientation, nominal ToF projection geometry, `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen. The LSM6DSOX package mapping and short-baseline relative-body rotation have been physically validated on the current reference rig. `mag_sensor -> device_body`, rigid translations and world/local-frame conventions remain open.
 
-Named frames used by the architecture:
+Named frames:
 
-- `tof_optical` - VL53L5CX optical/ray frame.
-- `imu_sensor` - LSM6DSOX package measurement frame.
-- `mag_sensor` - LIS3MDL package measurement frame.
-- `device_body` - rigid assembled sensing-head frame.
-- `world` / `local` - estimator/map frame.
+- `tof_optical` - VL53L5CX optical/ray frame;
+- `imu_sensor` - LSM6DSOX package measurement frame;
+- `mag_sensor` - LIS3MDL package measurement frame;
+- `device_body` - rigid assembled sensing-head frame;
+- `world` / `local` - future estimator/map frame.
 
 ## `tof_optical`
 
-The first physically validated frame is `tof_optical`.
+`tof_optical` is right-handed:
 
-It is a **right-handed** optical frame:
-
-- origin: nominal optical centre of the VL53L5CX sensing aperture; the exact calibrated physical origin remains future calibration work;
-- `+X`: right in the sensor image when standing behind the sensor and looking forward into the scene;
-- `+Y`: down in that image;
+- origin: nominal optical centre of the VL53L5CX sensing aperture;
+- `+X`: scene/image right when standing behind the sensor and looking forward;
+- `+Y`: image down;
 - `+Z`: forward from the sensor into the scene.
 
 Therefore `+X x +Y = +Z`.
 
-This convention is project-owned. It is intentionally stated explicitly rather than inherited implicitly from OpenGL, Android, Open3D, ROS or any other platform API.
-
-Geometric distances and Cartesian coordinates in the reference host layer are expressed in **millimetres** unless an interface explicitly states otherwise.
+Geometric distances and Cartesian coordinates in the reference host layer are in **millimetres** unless an interface explicitly states otherwise.
 
 ## `device_body`
 
@@ -35,7 +31,7 @@ Geometric distances and Cartesian coordinates in the reference host layer are ex
 - `+Y`: intended device down;
 - `+Z`: intended mechanical forward direction.
 
-The nominal design makes these axes parallel to `tof_optical`, so an uncalibrated unit uses an identity ToF/body rotation. An individual assembled unit is **not** assumed to achieve that perfectly. Package, PCB, bracket or enclosure alignment can produce a common boresight rotation.
+The nominal design makes these axes parallel to `tof_optical`, but a real assembly is not assumed to achieve that exactly.
 
 The v1 rotation contract is:
 
@@ -45,17 +41,39 @@ v_body = R_body_from_tof * v_tof
 
 and is implemented by `host/python/rangeweave_extrinsics.py`.
 
-This is deliberately separate from the 64 independent ToF zone slopes. Intrinsic optical ray geometry remains expressed in `tof_optical`; a common assembly rotation belongs in the rigid extrinsic.
+A common assembly rotation belongs in this rigid extrinsic. It must not be hidden inside the 64 independent ToF zone slopes.
 
-The physical LSM6DSOX package-axis mapping into `device_body` has not yet been experimentally frozen. No IMU reading may silently be treated as a body-frame orientation until that validation is complete.
+## `imu_sensor -> device_body` on the reference rig
 
-See [`tof-body-extrinsics.md`](tof-body-extrinsics.md).
+Physical axis tests on the current rigid breadboard reference assembly established:
 
-## Producer-native versus physical zone indices
+```text
+device_body +X -> imu_sensor -X
+device_body +Y -> imu_sensor -Z
+device_body +Z -> imu_sensor -Y
+```
 
-Protocol v0.1 `layout_id = 0` remains producer-native flattened zone order. Raw `TOF_GRID` data is never rewritten into physical order.
+Therefore the current reference-host mapping is:
 
-A four-corner physical validation on 2026-08-22 established:
+```text
+body X = -imu X
+body Y = -imu Z
+body Z = -imu Y
+```
+
+The corresponding 3x3 mapping is a proper rotation with determinant +1.
+
+This mapping is **assembly-specific**. It is valid for the physically tested reference mounting; it is not a universal property of the LSM6DSOX package or Adafruit breakout. Any builder who mounts the IMU differently must establish the correct `imu_sensor -> device_body` transform for that build.
+
+The reference implementation uses this mapping for short-baseline calibration motions. The relative-rotation estimator has been physically checked on simple and compound movements with sub-degree independent gravity closure under the current +/-500 deg/s acquisition configuration.
+
+See [`tof-body-extrinsics.md`](tof-body-extrinsics.md) and [`boresight-calibration.md`](boresight-calibration.md).
+
+## Producer-native versus physical ToF zone indices
+
+Protocol v0.1 `layout_id = 0` remains producer-native flattened zone order. Raw `TOF_GRID` records are never rewritten into physical/image order.
+
+Four-corner physical validation established:
 
 ```text
 physical upper-left   -> producer r07c07
@@ -64,12 +82,7 @@ physical lower-left   -> producer r00c07
 physical lower-right  -> producer r00c00
 ```
 
-For an 8x8 grid, define physical/image indices `p_row` and `p_col` such that:
-
-- `p_row = 0` is the physical top and increases toward `+Y` (down);
-- `p_col = 0` is the physical left and increases toward `+X` (right).
-
-The mapping from producer-native indices `(r, c)` is:
+For an 8x8 grid, define physical/image indices `p_row`, `p_col` with row 0 at the physical top and column 0 at physical left:
 
 ```text
 p_row = 7 - r
@@ -83,40 +96,34 @@ r = 7 - p_row
 c = 7 - p_col
 ```
 
-For producer-native flattened index:
-
-```text
-n = 8*r + c
-```
-
-and physical row-major flattened index:
+With producer flattened index `n = 8*r + c`, physical row-major index is:
 
 ```text
 p = 8*p_row + p_col = 63 - n
 ```
 
-This is a pure 180-degree rotation. It is not a transpose and not a single-axis mirror.
+This is a pure 180-degree rotation, not a transpose or a single-axis mirror.
 
-### Golden numeric examples
+Golden examples:
 
 ```text
-producer r00c00 / n=0   -> physical row 7, col 7 / p=63  (lower-right)
-producer r00c07 / n=7   -> physical row 7, col 0 / p=56  (lower-left)
-producer r07c00 / n=56  -> physical row 0, col 7 / p=7   (upper-right)
-producer r07c07 / n=63  -> physical row 0, col 0 / p=0   (upper-left)
+producer r00c00 / n=0   -> physical row 7, col 7 / p=63
+producer r00c07 / n=7   -> physical row 7, col 0 / p=56
+producer r07c00 / n=56  -> physical row 0, col 7 / p=7
+producer r07c07 / n=63  -> physical row 0, col 0 / p=0
 producer r03c03 / n=27  -> physical row 4, col 4 / p=36
 producer r04c04 / n=36  -> physical row 3, col 3 / p=27
 ```
 
-Because the grid has an even number of rows and columns, no single zone lies exactly on the optical axis; the nominal centre falls between the four central zones.
+Because the grid is even-sized, no single zone lies exactly on the optical axis; the nominal centre falls between the four central zones.
 
-The measured experiment and rationale are recorded in [`tof-zone-orientation.md`](tof-zone-orientation.md).
+See [`tof-zone-orientation.md`](tof-zone-orientation.md).
 
 ## Nominal 64-zone projection fallback
 
-The first built-in VL53L5CX ray/projection profile is documented in [`tof-ray-geometry.md`](tof-ray-geometry.md) and implemented by `host/python/rangeweave_geometry.py`.
+The built-in VL53L5CX ray profile is documented in [`tof-ray-geometry.md`](tof-ray-geometry.md) and implemented by `host/python/rangeweave_geometry.py`.
 
-A crucial device convention is explicit: VL53L5CX `distance_mm` is the **axial/perpendicular Z distance**, not slant range. For each producer ZoneID, Rangeweave stores a projective direction `(x_per_z, y_per_z, 1)` and computes:
+Rangeweave treats VL53L5CX `distance_mm` as **axial/perpendicular Z distance**, not slant range. For each producer zone the profile stores `(x_per_z, y_per_z, 1)` and projects:
 
 ```text
 X = x_per_z * distance_mm
@@ -124,13 +131,11 @@ Y = y_per_z * distance_mm
 Z = distance_mm
 ```
 
-The built-in slopes are derived from ST's published VL53L5CX plane/XYZ lookup table, with the documented duplicated-yaw copy error corrected for that profile. Their architectural role is a **nominal fallback for uncalibrated systems**. Raw captures do not depend on them, and downstream Rangeweave geometry must be able to substitute a measured per-device profile without changing capture semantics.
+Do not normalize that vector and multiply by `distance_mm`; that would reinterpret axial range as slant range.
 
-Rangeweave does not require calibrated zone directions to preserve the ST table's symmetry, spacing or curvature. A valid measured profile may bow inward, bow outward, be asymmetric, or differ zone-by-zone if the calibration measurements support it.
+The built-in slopes are a **nominal fallback for uncalibrated systems** derived from ST's published plane/XYZ lookup data, with the documented duplicated-yaw table error corrected for this project profile. A measured per-device profile may legitimately be asymmetric or differ zone-by-zone.
 
-A normalized unit ray may be derived from the same vector for algorithms that need direction only. It must **not** be multiplied directly by `distance_mm`, because that would reinterpret the device's axial range as a slant range.
-
-Golden one-metre axial-wall examples for the built-in fallback include:
+Golden one-metre axial-wall examples for the fallback include:
 
 ```text
 producer ZoneID 0  -> (+362.624, +362.624, 1000) mm
@@ -139,22 +144,26 @@ producer ZoneID 56 -> (+362.624, -362.624, 1000) mm
 producer ZoneID 63 -> (-362.624, -362.624, 1000) mm
 ```
 
-All 64 synthetic wall points retain `Z = 1000 mm` exactly.
+All synthetic wall points retain `Z = 1000 mm` exactly.
 
-The fallback has been exercised against both a real flat-wall capture and a thin diagonal foreground object against a distant wall. Those tests validate the projection pipeline and depth convention. They do not elevate the ST-derived X/Y lattice to per-device calibrated truth; the front-on diagonal-object test visibly exposed the fallback lattice's inward edge curvature, motivating the generic calibration layer.
+## ToF/body boresight
+
+The fixed-plane solver estimates `R_body_from_tof` from ToF plane normals and relative body rotations while treating the fixed wall's absolute room normal as a nuisance parameter.
+
+A four-pose physical sequence on the current reference rig produced a small provisional boresight with ~0.535 deg normal RMS. The result is not yet a promoted artifact because final held-out validation under the newer +/-500 deg/s gyro configuration remains to be completed.
+
+For current builder/setup guidance, see [`boresight-calibration.md`](boresight-calibration.md). The recommended boresight target is a clear flat wall patch, P0 approximately 500 mm from the wall; that distance is setup guidance rather than a frame-definition constant.
 
 ## Still to freeze / calibrate
 
-Before IMU/ToF fusion or world-frame reconstruction is merged, we must still document and physically validate:
+Before full IMU/ToF fusion or world-frame reconstruction is considered stable, Rangeweave still needs to document and validate:
 
-1. `imu_sensor` package axes in the actual board mounting and their rotation into `device_body`;
-2. `mag_sensor` package axes in the actual board mounting and their rotation into `device_body`;
-3. quaternion component order, active/passive interpretation and multiplication order;
-4. transform notation (`T_A_B` meaning exactly what?);
-5. the relative-body orientation estimator used by the physical ToF/body boresight calibration;
-6. physical per-device `R_body_from_tof` calibration and held-out validation (the mathematical artifact and synthetic fixed-plane solver now exist);
-7. portable per-device VL53L5CX geometry profiles, physical fit diagnostics and exact optical origin where required;
-8. rigid translation between ToF, IMU, magnetometer and body origins where applications need it;
-9. `world` / `local` frame initialization and update conventions.
+1. `mag_sensor -> device_body` on the physical build;
+2. quaternion component order and active/passive/multiplication conventions for the future attitude layer;
+3. any broader transform notation used for rigid 6DoF transforms;
+4. final held-out per-device `R_body_from_tof` calibration and provenance;
+5. portable per-device VL53L5CX intrinsic/ray profiles and exact optical origin where required;
+6. rigid translations between ToF, IMU, magnetometer and body origins where applications require them;
+7. `world` / `local` frame initialization and update conventions.
 
 No platform-specific API convention may silently become the project convention.
