@@ -2,15 +2,30 @@
 
 Start here:
 
-- [Build guide](build-guide.md) - reproduce the validated breadboard sensor stack.
+- [Build guide](build-guide.md) - reproduce and self-test the validated breadboard sensor stack.
+- [Boresight calibration](boresight-calibration.md) - current physical ToF-to-device-body alignment workflow, including the recommended wall/3-axis-mount setup and quality gates.
+- [Calibration model](calibration.md) - how timing, sensor intrinsics, assembly extrinsics and runtime state are kept separate.
+- [Optional ToF intrinsic known-plane workflow](tof-calibration-plane-workflow.md) - per-zone VL53L5CX ray/geometry refinement; distinct from boresight calibration.
+- [ToF/body extrinsics](tof-body-extrinsics.md) - rotational contract, physical reference-rig IMU mapping and fixed-plane solver.
+- [Coordinate frames](coordinate-frames.md) - frozen optical/body conventions and current physical validation status.
+- [Validation](validation/README.md) - reference self-test evidence and reproduction reporting.
+- [Boresight physical evidence](validation/boresight-reference-rig-2026-09.md) - reference-rig axis, gyro-range and fixed-plane validation summary.
 - [Project plan](project-plan.md) - living architecture/roadmap.
 - [Architecture](architecture.md) - layer boundaries and portability contract.
+- [Protocol](protocol.md) - packet/record requirements and protocol status.
+- [Capture format](capture-format.md) - canonical recording layout and metadata.
+- [Raw depth viewer](raw-depth-viewer.md) and [temporal depth viewer](temporal-depth-viewer.md) - current visualization tooling.
 - [Repository layout](repository-layout.md) - what belongs where.
 - [Development history](development-history.md) - why the current split-bus/FIFO/timestamp design exists.
-- [Validation](validation/README.md) - reference self-test evidence and how to report a reproduction.
-- [Calibration](calibration.md) - current calibration categories and planned workflows.
-- [Coordinate frames](coordinate-frames.md) - named frames; conventions to freeze before geometry code.
-- [Android porting](android-porting.md) - breadcrumbs for Kotlin/Android parity.
+- [Android porting](android-porting.md) - Kotlin/Android parity notes.
 - [Hardware porting](hardware-porting.md) - MCU/transport portability constraints.
-- [Protocol](protocol.md) - requirements for the next packet design stage.
 - [ADRs](adr/README.md) - accepted architecture decisions.
+
+## Calibration terminology
+
+Two physical workflows are easy to confuse:
+
+1. **ToF intrinsic/ray calibration** estimates per-zone geometry inside `tof_optical` and can require measured known-plane geometry.
+2. **ToF/body boresight calibration** estimates one rigid `R_body_from_tof` rotation for the assembled sensing head. Its preferred target is simply a fixed clear wall; the wall's absolute room orientation is not measured.
+
+Use the dedicated documents above rather than treating the older phrase "calibration board" as a requirement for every calibration task.
