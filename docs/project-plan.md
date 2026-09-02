@@ -1,40 +1,47 @@
 # Rangeweave — Project Plan and Architecture Roadmap
 
-**Living project plan and architecture roadmap. Initial public baseline derived from v0.2 (18 August 2026).**
-
-> From this repository onward, Git history and tagged releases supersede version numbers in documentation filenames.
+**Living project plan. Git history and validation records are the authoritative change history.**
 
 ## Project intent
 
-Develop a small, inexpensive, privacy-preserving sensing module that combines sparse active depth and inertial sensing to estimate motion and build 3D representations of objects and environments. The architecture must remain portable beyond the Raspberry Pi Pico prototype, support PC and Android hosts, and remain practical to maintain, reproduce and extend as an open-source project.
+Develop a small, inexpensive, RGB-free sensing module that combines sparse active depth and inertial sensing to estimate motion and build 3D representations of objects/environments. The architecture must remain portable beyond the current Pico 2 W prototype, support replay and future PC/Android implementations, and keep raw evidence available for later algorithm improvements.
 
 ## Current validated baseline
 
 - Raspberry Pi Pico 2 W running MicroPython.
 - LSM6DSOX + LIS3MDL on I2C0 (GP4/GP5, 400 kHz).
-- VL53L5CX on I2C1 (GP2/GP3, 1 MHz), 8×8 at ~15 fps.
-- LSM6DSOX accel/gyro hardware FIFO with one hardware timestamp per inertial slot.
-- Per-unit `INTERNAL_FREQ_FINE` discovery and rolling Pico↔LSM clock model; no hard-coded real ODR.
-- LIS3MDL address made deterministic at `0x1E` by tying ADM high.
-- Reference v0.5 reproducibility self-test: **SYSTEM READY: PASS**.
-- Pico Rangeweave v0.1 acquisition producer: lossless steady-state USB stream demonstrated on the reference unit with zero measured frame/sequence/drop/FIFO/sensor errors and VL53L5CX capture measured at 14.9955 Hz against a configured 15 Hz.
+- VL53L5CX on I2C1 (GP2/GP3, 1 MHz), 8x8 at ~15 Hz.
+- LSM6DSOX accel/gyro FIFO with hardware timestamps.
+- Per-unit `INTERNAL_FREQ_FINE` discovery and recorded Pico<->LSM clock correlation.
+- LIS3MDL deterministic address `0x1E` via `ADM -> 3V3`.
+- Reproducibility self-test can reach `SYSTEM READY: PASS` on the reference stack.
+- Hardware-validated Rangeweave v0.1 binary acquisition producer over USB CDC with explicit loss/health reporting.
+- Canonical Python capture/replay and stream-inspection tooling.
+- Physically validated VL53L5CX producer-to-image orientation and nominal 64-zone projection convention.
+- Raw/temporal depth viewing and sparse point-cloud inspection.
+- Physical reference-rig LSM6DSOX axis mapping into `device_body`.
+- Short-baseline relative-body rotation with independent accelerometer gravity closure.
+- Acquisition gyro moved to +/-500 deg/s after physical calibration testing exposed the old +/-250 deg/s range limit.
+- Fixed-plane ToF/body boresight sequence/solver has produced a plausible provisional four-pose physical result.
+- Boresight motion and stationary-ToF quality gates are implemented.
 
-The diagnostic firmware remains the reproduction baseline. The acquisition producer is now hardware-validated on the reference unit; the next work is the canonical PC capture/replay layer rather than further sensor bring-up.
+The current focus is finishing the physical ToF/body calibration workflow cleanly, then promoting a versioned per-device extrinsic before moving deeper into orientation/odometry.
 
 ## Non-negotiable design principles
 
-1. **Privacy by capability.** The core mapping path does not require RGB imagery.
-2. **Cheap first, small later.** Development boards are acceptable, but architecture must permit an ESP32-class or similarly small final controller.
-3. **Display-independent tracking.** Do not depend on a particular AR headset SDK.
+1. **Privacy by capability.** The core sensing path does not require RGB.
+2. **Cheap first, small later.** Development boards are acceptable; architecture must remain portable.
+3. **No display-SDK dependency.** Tracking is a sensing problem, not a headset-API feature.
 4. **No installed beacons as a core requirement.**
-5. **Keep raw data.** Avoid irreversible preprocessing on the MCU.
+5. **Keep raw data.** Avoid irreversible MCU preprocessing.
 6. **Use explicit timestamps, not assumed sample rates.**
-7. **Represent uncertainty.** Poorly observable motion is a valid state.
-8. **Physics first; ML augments.** Learned models provide bounded corrections/confidence rather than unchecked absolute truth.
-9. **Replay everything.** Live and recorded data should enter the same host-processing interfaces.
-10. **Transport independence.** USB now; Android USB, BLE/Wi-Fi or local recording later without changing packet meaning.
-11. **Cross-platform by construction.** Python is the reference implementation; Kotlin/Android receives specs and golden test vectors from the beginning.
-12. **Open-source maintainability.** Clearly label validated, experimental and planned behaviour, and keep public documentation aligned with the implemented system.
+7. **Represent uncertainty/failure.** Poor observability is a valid result.
+8. **Physics first; ML augments.** Learned corrections must be bounded and measurable against conventional baselines.
+9. **Replay everything.** Live and recorded data should enter equivalent host paths.
+10. **Transport independence.** USB now; other transports later without changing record meaning.
+11. **Cross-platform by construction.** Python is the reference implementation; protocol/calibration conventions must be portable.
+12. **Keep intrinsics, rigid extrinsics and runtime state separate.**
+13. **Keep public documentation aligned with implementation and physical evidence.**
 
 ## Layered architecture
 
@@ -60,217 +67,137 @@ SENSORS
         VISUALISATION / APPLICATIONS
 ```
 
-The packet/record model is the portability boundary. Sensor hardware and transport may change without changing the semantic data model; host platform and visualisation may change without changing firmware sensor acquisition.
+The packet/record model is the portability boundary. Sensor semantics must not depend on Pico GPIOs, MicroPython object types or USB-specific timing.
 
-## MCU portability contract
+## Calibration architecture
 
-Firmware should be conceptually split into:
+Keep four categories distinct:
 
-1. **Sensor drivers** — configure devices and return raw measurements plus native timestamps.
-2. **Clock service** — MCU monotonic time and sensor↔MCU clock-correlation observations.
-3. **Packetizer/queue** — versioned records, unaware of transport.
-4. **Transport adapter** — USB initially; later BLE, Wi-Fi, UART or local storage.
+- **timing calibration** — per-unit clock/timestamp properties discovered automatically;
+- **sensor intrinsics** — ToF rays/range bias, IMU scale/bias, magnetic hard/soft iron;
+- **assembly extrinsics** — rigid rotations/translations between `tof_optical`, `imu_sensor`, `mag_sensor` and `device_body`;
+- **runtime estimator state** — pose, covariance, online gyro bias, magnetic confidence and map state.
 
-No host parser or mapping algorithm may depend on MicroPython objects, Pico GPIO numbering, or the measured ~101 Hz rate of the reference IMU.
+Two current ToF workflows must not be conflated:
 
-## Protocol and recording requirements
+### Optional VL53L5CX intrinsic/ray calibration
 
-Protocol v0.1 is now a **hardware-validated implementation candidate** on the Pico reference producer. Its normative byte-level specification lives in [`../protocol/spec-v0.1.md`](../protocol/spec-v0.1.md). Cross-language Kotlin/Android conformance remains outstanding before the protocol is treated as broadly stabilised.
+Uses measured known planes to refine per-zone geometry inside `tof_optical`. A portable board or another measurable plane may be appropriate. See [`tof-calibration-plane-workflow.md`](tof-calibration-plane-workflow.md).
 
-The protocol is binary, versioned, language-neutral, resynchronisable, sequence-numbered, explicitly little-endian and transport-agnostic. Firmware version, protocol version and calibration-schema version remain independent.
+### ToF/body boresight calibration
 
-Initial logical records:
+Uses a **single fixed plane** plus relative IMU body rotations to estimate one rigid `R_body_from_tof` rotation. The wall's absolute room orientation is a nuisance parameter and is not measured.
 
-- **IMU_BATCH:** one or more raw accel/gyro samples, each carrying an extended native LSM timestamp tick.
-- **MAG:** raw magnetic XYZ plus MCU-before/after read brackets and status/retry metadata.
-- **TOF_GRID:** sparse range grid plus MCU data-ready/read-complete brackets and optional reflectance/target-status arrays; no precomputed mapped LSM time.
-- **CLOCK_SYNC:** raw MCU-before / LSM-tick / MCU-after clock-correlation observation.
-- **STATUS:** cumulative acquisition, FIFO, queue/backpressure and error counters.
-- **STREAM_INFO:** ephemeral per-session identity plus extensible TLV sensor/configuration metadata; no globally stable hardware identifier is required.
+Recommended builder setup is now:
 
-The crucial timing rule is that the wire stream preserves **source clock domains**. Common-time mapping is a host/replay operation derived from recorded `CLOCK_SYNC` observations, so an improved clock model can be applied to old recordings.
+- clear flat wall patch at least ~1 m x 1 m;
+- P0 roughly 500 mm from the wall and approximately square-on;
+- rigid sensing head on a 3-way photographic pan/tilt/roll head or equivalent;
+- moderate multi-axis pose changes rather than exact measured commanded angles.
 
-Canonical capture layout initially:
+Current empirical boresight gates:
 
 ```text
-capture_YYYYMMDD_HHMMSS/
-  metadata.json
-  packets.bin
-  calibration.json
-  notes.txt
+relative motion >= 5 deg
+gyro warning / reject = 80% / 90% configured full scale
+gyro/gravity closure <= 2 deg
+ToF plane RMS <= 10 mm
+ToF max plane residual <= 30 mm
+ToF max half-capture drift <= 10 mm
 ```
 
-`packets.bin` should contain the same framed packets used live so replay is not a separate data model.
-
-## PC-first, Android-first-class
-
-### Python reference stack
-
-```text
-host/python/
-  protocol/
-  capture/
-  replay/
-  core/
-  visualization/
-  mapping/
-  tests/
-```
-
-Desktop libraries such as NumPy/SciPy/Open3D may be used behind project-owned interfaces; they must not define the protocol or calibration format.
-
-### Android portability rules
-
-- Kotlin decoder must pass the same golden packet fixtures as Python.
-- Start with Android USB host/OTG for the wired prototype; BLE/Wi-Fi are later transport adapters.
-- Keep parsing and mapping out of Activity/UI lifecycle code; use a streaming boundary such as coroutines/Flow.
-- Define byte order, integer widths, units and coordinate frames explicitly.
-- Do not add JNI/NDK merely for theoretical performance; introduce native code only after profiling.
-- Every mapping milestone should leave an **Android Port Note** describing platform assumptions, Kotlin equivalents and required parity fixtures.
-
-## Mapping pipeline
-
-1. **Raw capture and health:** packet validation, plots, replay parity.
-2. **Single-frame geometry:** calibrated 8×8 rays -> 64 sparse 3D points.
-3. **Orientation:** timestamped gyro integration + accelerometer gravity + confidence-gated magnetometer.
-4. **Local translation/odometry:** inertial prediction corrected by sparse-depth geometry; uncertainty retained.
-5. **Mapping:** point/voxel baseline, then submaps.
-6. **Loop closure:** place candidates + geometric verification + global optimisation.
-7. **Learned enhancements:** bias/confidence/dynamics/relative corrections/neural map representations, evaluated against conventional baselines.
-
-## Calibration model
-
-Keep separate:
-
-- **Factory/unit timing:** discovered automatically (`INTERNAL_FREQ_FINE`, measured clock model).
-- **Per-sensor intrinsic calibration:** ToF zone rays/range bias, IMU scale/bias, magnetic hard/soft iron.
-- **Assembly extrinsics:** rigid transforms between ToF, IMU and device-body frames.
-- **Runtime estimator state:** pose, covariance, gyro bias estimate, magnetic confidence.
-
-Use named frames (`tof_optical`, `imu_sensor`, `mag_sensor`, `device_body`, `world/local`) and version any future convention change.
+These are workflow safeguards derived from reference-rig data, not universal sensor specifications.
 
 ## Development phases
 
-| Phase | Status | Exit gate |
+| Phase | Current state | Exit gate |
 |---|---|---|
-| 0. Sensor-stack validation | **DONE / BASELINE** | Fresh assembly can reach `SYSTEM READY: PASS` without per-unit hard-coded ODR. |
-| 1. Protocol + PC capture/replay | **IN PROGRESS — protocol + Pico producer validated** | Live and replayed streams decode identically; packet loss is detectable. |
-| 1A. Android protocol smoke test | Next after protocol stabilises | Python and Kotlin decode identical golden fixtures. |
-| 1B. MCU portability spike | Early planned | ESP32-class synthetic packet source is indistinguishable at protocol level except metadata. |
-| 2. Raw viewer + 64-point projection | Planned | Flat wall produces expected sparse plane / known ranges. |
-| 3. Orientation | Planned | Rotation-in-place leaves static geometry directionally stable within measured bounds. |
-| 4. Calibration suite | Planned | Versioned calibration is repeatable and portable across PC/Android. |
-| 5. Known-pose scanner | Planned | Controlled motion produces consistent object/scene geometry. |
-| 6. Freehand local odometry | Research → planned | Quantified drift on repeatable trajectories; uncertainty rises when geometry is weak. |
-| 7. Persistent mapping + loop closure | Planned | Verified loop closure reduces return-to-start error without false closures. |
-| 8. Android viewer/mapping parity | Planned | Android reproduces reference outputs on shared recordings within tolerance. |
-| 9. Compact sensor node | Planned | ESP32-class/small MCU, BLE/Wi-Fi/local-storage options retain protocol/data integrity. |
-| 10. Dual-sensor wearable | Planned | Two-ToF arrangement measurably improves coverage/robustness. |
+| 0. Sensor-stack validation | **DONE / BASELINE** | Fresh reference assembly can reach `SYSTEM READY: PASS`. |
+| 1. Protocol + Pico acquisition + PC capture/replay | **DONE on reference path** | Live stream is loss-detectable and canonical captures replay through the same parser. |
+| 1A. Android protocol parity | **PLANNED** | Kotlin decodes shared fixtures/captures consistently with Python. |
+| 1B. MCU portability spike | **PLANNED** | Alternate MCU producer preserves protocol semantics. |
+| 2. Raw viewer + nominal sparse geometry | **IMPLEMENTED / PHYSICALLY EXERCISED** | Real wall/object captures project with the documented orientation/depth convention. |
+| 2A. Optional ToF intrinsic calibration | **IMPLEMENTED CANDIDATE** | Repeatable per-device geometry profile with held-out validation/provenance. |
+| 2B. ToF/body rotational boresight | **PHYSICAL VALIDATION IN PROGRESS** | Guided fixed-wall workflow + held-out validation + promoted versioned artifact. |
+| 3. Orientation | **NEXT MAJOR ESTIMATION LAYER** | Rotation-in-place keeps static geometry stable within quantified bounds. |
+| 4. Full calibration suite | **PARTIAL** | Versioned timing/intrinsic/extrinsic artifacts are reproducible and portable. |
+| 5. Known-pose scanner | **PLANNED** | Controlled motion produces consistent geometry. |
+| 6. Freehand local odometry | **RESEARCH / PLANNED** | Quantified drift on repeatable trajectories with uncertainty. |
+| 7. Persistent mapping + loop closure | **PLANNED** | Verified loop closure improves return-to-start without false closures. |
+| 8. Android viewer/mapping parity | **PLANNED** | Android reproduces reference outputs within tolerance. |
+| 9. Compact sensor node | **PLANNED** | Smaller MCU/transport options retain data integrity. |
+| 10. Multi-ToF / wearable variants | **FUTURE** | Additional sensors measurably improve coverage/robustness. |
 
 ## Immediate work package
 
-Completed in the protocol/Pico acquisition candidate:
+Current priority order:
 
-1. Freeze [`firmware/pico2w/diagnostics/reproducible_sensor_stack.py`](../firmware/pico2w/diagnostics/reproducible_sensor_stack.py) as the diagnostic baseline.
-2. Define binary framing and initial record semantics before writing the acquisition loop.
-3. Create byte-level golden fixtures for every initial v0.1 record type plus corruption/resynchronisation coverage.
-4. Implement a dependency-light Python reference decoder/stream parser.
-5. Implement and physically validate the Pico acquisition firmware using complete raw records, transport-independent packetization/queueing and USB CDC transport.
+1. finish the builder-facing guided boresight command so it owns capture warm-up and HOLD / MOVE NOW / STOP MOVING cues;
+2. run a fresh fixed-wall sequence under the current +/-500 deg/s acquisition configuration using the improved multi-axis fixture;
+3. reserve a geometrically different pose as held-out validation;
+4. promote a per-device `rangeweave.tof-body-rotation` artifact with capture/firmware/geometry provenance;
+5. update PR/documentation and merge Phase 2 only after the physical workflow is internally consistent;
+6. then proceed to the broader orientation layer (gyro + gravity, later confidence-gated magnetometer) and static-geometry validation.
 
-Next:
-
-6. Implement canonical USB receiver/recorder and replay adapter using the same stream decoder.
-7. Implement Android/Kotlin parser + USB smoke test while the protocol is still small.
-8. Record stationary, rotation-only, translation and simple scene datasets.
-9. Build raw viewer + first 64-point ToF projection.
-10. Only then begin orientation and SLAM/odometry work.
+Parallel lower-priority portability work remains Android protocol parity and an alternate-MCU producer spike.
 
 ## Testing strategy
 
-- Protocol unit tests and corruption/resync tests.
-- Python↔Kotlin cross-language conformance tests.
-- Replay regression tests using small checked-in golden recordings.
-- Hardware self-test for every physical build.
-- Bench calibration (flat wall, static IMU, controlled rotation, known-pose scanner).
-- Repeatable trajectory tests (return-to-start, straight line, feature-rich/feature-poor scenes).
-
-## Repository layout
-
-```text
-rangeweave/
-  README.md
-  LICENSE
-  CONTRIBUTING.md
-  CHANGELOG.md
-  docs/
-    project-plan.md
-    build-guide.md
-    protocol.md
-    calibration.md
-    coordinate-frames.md
-    android-porting.md
-    hardware-porting.md
-    validation/
-    adr/
-  firmware/
-    pico2w/
-      diagnostics/
-      acquisition/
-    esp32/
-  protocol/
-    test-vectors/
-  host/python/
-  android/
-  tools/
-  tests/
-  sim/
-  datasets/README.md
-```
-
-Use short Architecture Decision Records (ADRs) for decisions such as transport independence, raw-data preservation, hardware timestamps, diagnostic-vs-acquisition firmware separation, cross-platform test vectors, no-RGB/no-beacon core requirements, and physics-first ML augmentation.
+- protocol unit/corruption/resynchronisation tests;
+- cross-language fixture tests when Kotlin implementation begins;
+- replay regression tests using deliberately published small recordings where appropriate;
+- hardware self-test for every physical build;
+- fixed-wall and known-plane calibration tests;
+- held-out calibration observations rather than fitting every captured pose;
+- repeatable rotation/translation/return-to-start trajectories;
+- explicit health, range, temporal-stability and observability gates.
 
 ## Public claims policy
 
-### Supported now
+### Supported on the current reference rig
 
-- The reference prototype can acquire sparse-ToF and inertial data together under the tested workload without the observed FIFO loss/error conditions.
-- The diagnostic firmware measures per-unit IMU timing instead of assuming the reference unit's real sample rate.
-- The Pico reference producer can emit a loss-detectable Rangeweave v0.1 byte stream over USB CDC without measured steady-state packet loss on the validated reference run.
-- The core sensor path does not require RGB imagery.
+- sparse ToF and inertial acquisition can coexist under the tested workload without the previously observed FIFO/transport loss conditions;
+- per-unit IMU timing is measured rather than assumed;
+- protocol v0.1 acquisition/capture/replay works over the reference USB path;
+- physical ToF zone orientation and the nominal axial-Z projection convention are established;
+- the reference-rig LSM6DSOX axis mapping and short-baseline relative-rotation estimator have physical evidence;
+- fixed-plane ToF/body boresight is physically feasible and has produced a plausible provisional result.
 
-### Experimental now
+### Experimental / not yet promoted
 
-- Protocol v0.1 framing/records and Python reference decoding are backed by shared golden byte fixtures and live Pico acquisition, but Kotlin/Android conformance and broader multi-unit reproduction remain outstanding.
+- optional per-device ToF intrinsic calibration;
+- final per-device ToF/body boresight artifact;
+- any workflow currently requiring developer CLI orchestration rather than the planned guided command.
 
 ### Not yet supported
 
-- Reliable freehand SLAM or accurate 3D reconstruction.
-- Guaranteed reproducibility across arbitrary third-party assemblies until additional physical builds are tested.
-- Completed Android, BLE/Wi-Fi or ESP32 implementations.
-- Any claim that the system is anonymous/privacy-safe in every deployment context merely because it lacks RGB.
+- reliable freehand SLAM or dense/accurate room reconstruction;
+- universal calibration parameters across arbitrary third-party assemblies;
+- completed Android/BLE/Wi-Fi/ESP32 production implementations;
+- blanket privacy/anonymity claims based only on absence of RGB.
 
-## Frozen decisions
+## Frozen/current decisions
 
-- Sparse active ToF remains the primary range modality; PSD/laser triangulation is parked.
-- Current baseline: one VL53L5CX + one LSM6DSOX/LIS3MDL board, split across two I2C buses.
-- ADM is explicitly tied high for deterministic LIS3MDL address `0x1E`.
-- LSM accel/gyro use hardware FIFO + timestamps; real timing is discovered rather than assumed.
-- Pico 2 W is a reference prototype controller, not a protocol dependency.
-- USB-to-PC is first transport; Android USB host is first portability target; BLE/Wi-Fi later.
-- No installed beacons and no display-SDK dependency in the core design.
-- Future dual IMUs are calibrated as a rigid multi-IMU system, not naively averaged.
-- ML augments an uncertainty-aware physics-based estimator.
+- sparse active ToF remains the primary range modality;
+- reference hardware uses one VL53L5CX + one LSM6DSOX/LIS3MDL board on split I2C buses;
+- ADM is tied high for LIS3MDL address `0x1E`;
+- IMU timing comes from hardware FIFO timestamps plus measured clock correlation;
+- acquisition gyro currently uses +/-500 deg/s for calibration headroom;
+- Pico 2 W is a reference controller, not a protocol dependency;
+- USB-to-PC is the first transport;
+- calibration keeps ToF intrinsic rays separate from rigid ToF/body boresight;
+- no installed beacons or display-SDK dependency in the core design;
+- ML remains an augmentation to an uncertainty-aware physics/geometry baseline.
 
 ## Future-session checklist
 
 Before accepting a design change, ask:
 
-- Does it change sensor-data meaning? Version the protocol/calibration spec.
-- Does non-platform code know it is on a Pico or USB? Refactor behind an adapter.
-- Could Kotlin reproduce it from the docs and fixtures?
-- Are timestamps explicit rather than inferred from record index/nominal ODR?
-- Can the same experiment be replayed?
-- Are raw measurements retained?
-- Is uncertainty represented?
+- Does it change sensor-data meaning? Version the protocol/calibration convention.
+- Does non-platform code know it is on Pico/USB? Refactor behind an adapter.
+- Are timestamps explicit rather than inferred?
+- Can the same experiment be replayed from raw data?
+- Are calibration intrinsics/extrinsics/runtime state kept separate?
+- Is failure/uncertainty visible?
 - Is the claim validated, experimental or planned?
-- Does this make the eventual ESP32 or Android port harder? If so, insert an interface now.
+- Does the change make later Android/alternate-MCU parity harder?
