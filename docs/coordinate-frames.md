@@ -1,6 +1,6 @@
 # Coordinate frames
 
-**Status:** `tof_optical` axes/zone orientation, nominal ToF projection geometry, `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen. The LSM6DSOX package mapping, short-baseline relative-body rotation and reference-rig fixed-plane ToF/body boresight workflow have been physically validated, and the exact reference-rig boresight matrix is promoted as a per-device artifact. `mag_sensor -> device_body`, rigid translations and persistent world/local attitude conventions remain open; freezing those attitude conventions is the first task of Phase 3.
+**Status:** `tof_optical` axes/zone orientation, nominal ToF projection geometry, `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen. The LSM6DSOX package mapping, short-baseline relative-body rotation and reference-rig fixed-plane ToF/body boresight workflow have been physically validated, and the exact reference-rig boresight matrix is promoted as a per-device artifact. Phase 3 now also freezes the gravity-referenced `local_reference` attitude transform/quaternion convention. Persistent attitude estimation itself is still an unvalidated implementation candidate. `mag_sensor -> device_body`, rigid translations and any globally referenced world/heading convention remain open.
 
 Named frames:
 
@@ -8,7 +8,8 @@ Named frames:
 - `imu_sensor` - LSM6DSOX package measurement frame;
 - `mag_sensor` - LIS3MDL package measurement frame;
 - `device_body` - rigid assembled sensing-head frame;
-- `world` / `local` - future estimator/map frame.
+- `local_reference` - Phase 3 gravity-referenced orientation frame with local, non-global yaw zero;
+- `world` - future globally or map-referenced frame, not yet frozen.
 
 ## `tof_optical`
 
@@ -172,33 +173,48 @@ Those numbers are per-assembly validation evidence, not universal constants. The
 
 For builder/setup guidance, see [`boresight-calibration.md`](boresight-calibration.md).
 
-## Phase 3: persistent attitude conventions
+## `local_reference` and persistent attitude
 
-The next estimation layer must not silently inherit rotation conventions from a library or platform API. Before a persistent quaternion attitude state is considered part of the project contract, Phase 3 must explicitly freeze and test:
+Phase 3 freezes the first persistent attitude contract as:
 
-- quaternion component order;
-- whether the attitude maps `device_body -> local/reference` or the inverse;
-- active/passive interpretation;
-- multiplication/composition order;
-- angular-rate sign/frame convention;
-- gravity direction and startup alignment convention;
-- definition of the initial local/reference frame;
-- treatment of yaw as unobservable in accelerometer+gyro mode.
+```text
+v_reference = R_reference_from_body * v_body
+q_reference_from_body = (w, x, y, z)
+```
 
-The first implementation will use gyro + gravity only. Magnetometer heading is a later extension after `mag_sensor -> device_body`, hard/soft-iron calibration and magnetic disturbance gating are physically validated.
+where the quaternion is scalar-first, Hamilton, unit norm and represents the same active right-handed rotation as the matrix.
 
-See [`orientation-estimation.md`](orientation-estimation.md).
+`local_reference` uses `+Y` as physical gravity down at initialization. Its `+Z` direction is the horizontal projection of the initial `device_body +Z`; `+X` completes the right-handed basis. This supplies a deterministic **local yaw zero**, not an absolute heading.
+
+At rest the accelerometer measures specific force opposite gravity, so persistent-attitude code distinguishes:
+
+```text
+up_body = normalise(accel_body)
+gravity_down_body = -up_body
+```
+
+Mapped gyro is body-frame angular velocity. Because the persistent transform maps current body coordinates into the reference frame, body-frame increments right-multiply the attitude:
+
+```text
+q_reference_from_body(t + dt)
+    = q_reference_from_body(t) ⊗ dq_body
+```
+
+Accelerometer+gyro can constrain gravity/pitch/roll but cannot observe rotation about gravity. Yaw therefore remains gyro-propagated and may drift until a separately validated heading source is added.
+
+See [`attitude-conventions.md`](attitude-conventions.md) for the normative convention and golden examples, and [`orientation-estimation.md`](orientation-estimation.md) for the Phase 3 validation plan.
 
 ## Still to freeze / calibrate
 
 Before full 6DoF fusion or world-frame reconstruction is considered stable, Rangeweave still needs to document and validate:
 
-1. persistent attitude/quaternion and `world` / `local` initialization/update conventions;
+1. the persistent six-axis attitude estimator on real continuous rotation-in-place data;
 2. `mag_sensor -> device_body` on the physical build;
 3. magnetic hard-iron/soft-iron calibration and disturbance confidence;
-4. broader transform notation for rigid 6DoF transforms;
-5. portable per-device VL53L5CX intrinsic/ray profiles and exact optical origin where required;
-6. rigid translations between ToF, IMU, magnetometer and body origins where applications require them;
-7. boresight reproducibility across independently assembled units.
+4. any globally referenced `world` frame / heading initialization convention;
+5. broader transform notation for rigid 6DoF transforms;
+6. portable per-device VL53L5CX intrinsic/ray profiles and exact optical origin where required;
+7. rigid translations between ToF, IMU, magnetometer and body origins where applications require them;
+8. boresight reproducibility across independently assembled units.
 
 No platform-specific API convention may silently become the project convention.
