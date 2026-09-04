@@ -1,6 +1,6 @@
 # Rangeweave - RGB-Free Active Depth + IMU Spatial Mapping
 
-> **Project status:** reference sensor acquisition, protocol/capture/replay, raw/temporal depth viewing, nominal 64-zone projection and the reference-rig ToF/body rotational boresight workflow are physically validated on the current Pico 2 W stack. World-orientation/odometry and 3D mapping remain work in progress.
+> **Project status:** reference sensor acquisition, protocol/capture/replay, raw/temporal depth viewing, nominal 64-zone projection and the reference-rig ToF/body rotational boresight workflow are physically validated on the current Pico 2 W stack. The exact reference boresight artifact is promoted. **Phase 3 orientation estimation is next; translation/odometry and 3D mapping remain work in progress.**
 
 Rangeweave explores a small, inexpensive **RGB-free** sensing module combining sparse time-of-flight depth with inertial sensing. The long-term goal is to turn synchronized depth + motion observations into trajectories, sparse point clouds and eventually 3D maps while keeping the sensing head compact and portable beyond the current Raspberry Pi Pico prototype.
 
@@ -14,7 +14,7 @@ The project is deliberately evidence-first: preserve raw measurements and source
 - **Motion sensors:** LSM6DSOX at `0x6A`; LIS3MDL at deterministic `0x1E` (`ADM -> 3V3`).
 - **Depth sensor:** VL53L5CX at `0x29`, 8x8 / 64 zones at ~15 Hz.
 - **Timing:** LSM6DSOX FIFO timestamps plus recorded Pico<->LSM `CLOCK_SYNC` observations; hosts do not assume nominal ODR is exact.
-- **Acquisition gyro:** current stream firmware uses `CTRL2_G = 0x44` (104 Hz, +/-500 deg/s) to give calibration motions adequate rate headroom.
+- **Acquisition gyro:** current stream firmware uses `CTRL2_G = 0x44` (104 Hz, +/-500 deg/s) to give calibration/head-motion adequate rate headroom.
 
 The frozen hardware diagnostic remains the first reproduction gate and should reach `SYSTEM READY: PASS` before using the acquisition stream. The acquisition producer has also demonstrated lossless steady-state USB capture on the reference unit.
 
@@ -35,7 +35,8 @@ The frozen hardware diagnostic remains the first reproduction gate and should re
 - guided fixed-plane ToF/body boresight capture through P0-P5;
 - stationary ToF plane/temporal quality gates;
 - held-out P5 validation of the P0-P4 boresight fit;
-- stable six-pose final refit on the reference assembly.
+- stable six-pose final refit on the reference assembly;
+- promoted per-device reference-rig `rangeweave.tof-body-rotation` artifact with capture/configuration provenance.
 
 The September 2026 reference run predicted a held-out P5 ToF wall normal to **0.644 deg** and changed the fitted extrinsic by only **0.639 deg** after P5 was revealed. The six-pose result was approximately `Rx +5.880, Ry +3.930, Rz +0.160 deg` with `0.797 deg` normal RMS. These numbers describe that assembly only; other units must be calibrated independently.
 
@@ -48,11 +49,28 @@ The September 2026 reference run predicted a held-out P5 ToF wall normal to **0.
 
 **Still open**
 
+- persistent gyro+gravity orientation estimation and frozen world/local/quaternion conventions;
+- magnetometer/body calibration and confidence-gated magnetic heading;
 - independent cross-unit reproduction of the boresight workflow;
-- magnetometer/body calibration and world-frame attitude conventions;
 - rigid translation between sensor origins where required;
 - robust freehand 6DoF tracking, odometry, loop closure and metrically validated 3D reconstruction;
 - Android/BLE/Wi-Fi/ESP32 production parity.
+
+## Next milestone: orientation
+
+Phase 3 adds persistent attitude estimation before any attempt at freehand translation/SLAM.
+
+The first orientation baseline will:
+
+1. freeze quaternion/rotation and local-reference-frame conventions explicitly;
+2. integrate gyro using recorded sensor timestamps;
+3. use accelerometer gravity as a confidence-gated pitch/roll reference while leaving yaw unobservable in six-axis mode;
+4. replay existing clean calibration motions as regression cases;
+5. make one continuous multi-axis rotation-in-place capture against static geometry;
+6. apply the promoted `R_body_from_tof` and verify that the same wall/scene orientation stays stable while the sensing head rotates;
+7. add magnetic heading only after `mag_sensor -> device_body`, hard/soft-iron calibration and disturbance gating are physically validated.
+
+See [the Phase 3 orientation plan](docs/orientation-estimation.md) and [the overall project roadmap](docs/project-plan.md).
 
 ## Quick start: reproduce the sensor stack
 
@@ -75,7 +93,7 @@ Rangeweave deliberately separates:
 
 For boresight, the default physical target is a clear flat wall: P0 roughly 500 mm from the centre of at least a 1 m x 1 m unobstructed patch. A stable 3-way photographic head or equivalent fixture is a convenient way to hold and reposition a breadboard/sensor package. Exact wall distance and exact pose angles are not solver measurements.
 
-The standard builder command is now the full P0-P5 sequence:
+The standard builder command is the full P0-P5 sequence:
 
 ```powershell
 py host/python/guided_boresight.py COM5
@@ -117,11 +135,11 @@ The packet/record model is the portability boundary. Pico GPIOs, MicroPython obj
 
 ## Repository map
 
-- [`docs/`](docs/) - build, architecture, calibration, coordinate-frame and validation documentation.
+- [`docs/`](docs/) - build, architecture, calibration, coordinate-frame, orientation and validation documentation.
 - [`firmware/pico2w/diagnostics/`](firmware/pico2w/diagnostics/) - builder-facing hardware self-test.
 - [`firmware/pico2w/acquisition/`](firmware/pico2w/acquisition/) - binary acquisition producer.
 - [`protocol/`](protocol/) - language-neutral wire specification and fixtures.
-- [`host/python/`](host/python/) - capture/replay, geometry, viewers and calibration reference implementation.
+- [`host/python/`](host/python/) - capture/replay, geometry, viewers and calibration/estimation reference implementation.
 - [`android/`](android/) - Android portability notes/future implementation.
 - [`hardware/`](hardware/) - BOM, wiring and mechanical/PCB notes.
 - [`datasets/`](datasets/) - dataset policy and future published reference recordings.
@@ -142,7 +160,7 @@ Start with the [documentation index](docs/README.md) and [project plan](docs/pro
 
 ## Not yet claimed
 
-Rangeweave does not yet claim reliable freehand SLAM, dense reconstruction, loop closure, cross-unit calibration equivalence or privacy guarantees merely because RGB is absent.
+Rangeweave does not yet claim persistent world attitude, reliable freehand SLAM, dense reconstruction, loop closure, cross-unit calibration equivalence or privacy guarantees merely because RGB is absent.
 
 ## Contributing and license
 
