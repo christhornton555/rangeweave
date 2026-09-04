@@ -28,7 +28,7 @@ Develop a small, inexpensive, RGB-free sensing module that combines sparse activ
 - A provenance-rich `rangeweave.tof-body-rotation` artifact generator is implemented.
 - The exact validated reference-rig boresight artifact is promoted under `calibration/` and Phase 2 PR #10 is merged.
 
-**Current focus: Phase 3 orientation estimation.** Project-owned `local_reference`/quaternion/body-rate conventions are now frozen and golden-tested. A first deterministic gyro+gravity Python core and replay inspector are implemented as an **unvalidated candidate**. The immediate evidence step is replaying the existing clean boresight motion captures before gathering a new continuous rotation-in-place wall sequence.
+**Current focus: Phase 3 orientation estimation.** Project-owned `local_reference`/quaternion/body-rate conventions are frozen and golden-tested. The deterministic gyro+gravity Python core and replay inspector are implemented as a candidate. All five retained clean boresight motions (M1-M5) have now replayed with sub-degree start/end disagreement versus the already validated short-baseline relative-rotation estimator. Continuous wall-normal validation tooling is implemented and the next evidence step is one new slow multi-axis rotation-in-place capture against a fixed wall.
 
 ## Non-negotiable design principles
 
@@ -125,7 +125,7 @@ The September 2026 reference run used the built-in ToF geometry profile with rol
 | 2. Raw viewer + nominal sparse geometry | **DONE on reference path** | Real wall/object captures project with the documented orientation/depth convention. |
 | 2A. Optional ToF intrinsic calibration | **IMPLEMENTED / NOT YET PHYSICALLY PROMOTED** | Repeatable per-device geometry profile with held-out validation/provenance. |
 | 2B. ToF/body rotational boresight | **DONE / REFERENCE ARTIFACT PROMOTED** | Guided P0-P5 workflow, held-out P5 validation, artifact generation/provenance and merged documentation. |
-| 3. Orientation | **IN IMPLEMENTATION / REPLAY VALIDATION NEXT** | Rotation-in-place keeps static geometry stable within quantified bounds using a replayable attitude estimator with frozen conventions and visible confidence. |
+| 3. Orientation | **IN IMPLEMENTATION / WALL VALIDATION NEXT** | Rotation-in-place keeps static geometry stable within quantified bounds using a replayable attitude estimator with frozen conventions and visible confidence. |
 | 4. Full calibration suite | **PARTIAL** | Versioned timing/intrinsic/extrinsic artifacts are reproducible and portable, including magnetic and any required rigid translation calibration. |
 | 5. Known-pose scanner | **PLANNED** | Controlled motion produces consistent geometry. |
 | 6. Freehand local odometry | **RESEARCH / PLANNED** | Quantified drift on repeatable trajectories with uncertainty. |
@@ -142,12 +142,13 @@ Priority order:
 
 1. **DONE — freeze attitude conventions.** Scalar-first Hamilton `(w,x,y,z)`, active `R_reference_from_body`, body-frame angular-rate propagation, gravity/specific-force semantics and local yaw-zero are documented and golden-tested.
 2. **IMPLEMENTED CANDIDATE — six-axis Python baseline.** Timestamp-driven gyro integration, fixed explicit-startup bias estimate, confidence-gated gravity correction, diagnostics and deterministic replay are implemented but not yet physically promoted.
-3. **NEXT — replay existing clean boresight motions.** Compare persistent start-to-end orientation against the already validated hold-move-hold relative estimator for sign/composition/gravity regression evidence.
-4. **Then capture one new continuous multi-axis rotation-in-place sequence** against a fixed wall/static scene.
-5. **Validate orientation using static geometry** — apply the promoted `R_body_from_tof` plus estimated attitude and measure how constant the same wall normal remains. Use observed evidence to set acceptance bounds rather than inventing them in advance.
-6. **Add orientation-aware ToF viewing/projection** once the attitude path passes the rotation-only test.
-7. **Then tackle magnetic heading** — physically map `mag_sensor -> device_body`, calibrate hard/soft iron, characterize disturbances and add confidence-gated heading correction.
-8. Only after orientation is stable, proceed to translation/6DoF pose, known-pose scanning and freehand odometry.
+3. **DONE — replay existing clean boresight motions.** M1-M5 all remained in sub-degree start/end agreement with the already validated hold-move-hold relative estimator.
+4. **IMPLEMENTED — continuous wall-normal validation tooling.** `inspect_orientation_wall.py` combines the promoted boresight with interpolated persistent attitude and reports static-wall angular residuals while keeping ToF `mcu_ready_us` timing semantics explicit.
+5. **NEXT — capture one new continuous multi-axis rotation-in-place sequence** against a fixed wall/static scene.
+6. **Validate orientation using static geometry** — measure how constant the same wall normal remains and use observed evidence to set acceptance bounds rather than inventing them in advance. Inspect any angular-rate correlation for possible VL53L5CX effective timing offset before promoting thresholds.
+7. **Add orientation-aware ToF viewing/projection** once the attitude path passes the rotation-only test.
+8. **Then tackle magnetic heading** — physically map `mag_sensor -> device_body`, calibrate hard/soft iron, characterize disturbances and add confidence-gated heading correction.
+9. Only after orientation is stable, proceed to translation/6DoF pose, known-pose scanning and freehand odometry.
 
 Parallel lower-priority portability work remains Android protocol parity and an alternate-MCU producer spike. Optional per-device ToF intrinsic calibration also remains a separate experimental branch of work rather than a blocker for Phase 3.
 
@@ -165,6 +166,8 @@ n_tof
 ```
 
 The same physical wall should then have approximately the same `n_local` throughout the rotation. This gives a direct end-to-end test of timestamps, body-axis mapping, gyro integration, gravity correction, quaternion composition and boresight use.
+
+Protocol v0.1's ToF timestamp is `mcu_ready_us`, the MCU time at which software observes data-ready. The exact internal VL53L5CX ranging instant is not exposed; read-complete time is explicitly read latency rather than sensor time. The wall validator therefore keeps any ToF timing offset explicit and offers an exploratory offset scan only as a diagnostic, not an automatic calibration.
 
 ## Testing strategy
 
@@ -196,7 +199,7 @@ The same physical wall should then have approximately the same `n_local` through
 - optional per-device ToF intrinsic calibration;
 - boresight reproducibility across independently assembled units;
 - universal numeric acceptance bounds for held-out/final-fit stability across arbitrary fixtures and sensor assemblies;
-- the new persistent six-axis `local_reference` attitude implementation until replay and rotation-in-place validation are complete.
+- the persistent six-axis `local_reference` attitude implementation until continuous wall-normal validation is complete.
 
 ### Not yet supported
 
