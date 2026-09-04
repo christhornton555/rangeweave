@@ -21,12 +21,14 @@ DEFAULT_STATIONARY_CAPTURE_SECONDS = 8.0
 DEFAULT_MOTION_CAPTURE_SECONDS = 27.0
 DEFAULT_RECORDED_INITIAL_HOLD_SECONDS = 5.0
 DEFAULT_MOVE_SECONDS = 10.0
+DEFAULT_STEP_COUNT = 5
 
 STEP_INSTRUCTIONS = (
     "Pitch upward by roughly 15 deg (+device_body Rx).",
     "Move partway back toward neutral pitch and yaw right by roughly 15 deg (+device_body Ry).",
     "Yaw left across neutral to a clearly different pose (-device_body Ry), keeping a modest pitch if convenient.",
     "Add roughly 15 deg clockwise roll viewed from behind (+device_body Rz), with a modest pitch component.",
+    "From P4, yaw left to another clearly different orientation (roughly 20-30 deg if comfortable), while changing pitch modestly and reducing or changing the existing roll. Keep the full ToF field on the same wall.",
 )
 
 
@@ -267,8 +269,8 @@ def main() -> int:
     parser.add_argument(
         "--steps",
         type=int,
-        default=4,
-        help="number of motion/pose pairs (1..4; default 4 gives five stationary poses)",
+        default=DEFAULT_STEP_COUNT,
+        help="number of motion/pose pairs (1..5; default 5 gives P0-P5)",
     )
     parser.add_argument("--warmup", type=float, default=DEFAULT_WARMUP_SECONDS)
     parser.add_argument(
@@ -395,10 +397,17 @@ def main() -> int:
         print(f"M{index}:             {motion}")
         print(f"P{index}:             {pose}")
     print()
-    print(
-        "The last pose is retained for held-out validation. Do not promote the all-pose solver "
-        "result as the final extrinsic yet."
-    )
+    if args.steps == 5:
+        print(
+            "P5 is the validation pose. Generate the final artifact with "
+            f"`py host/python/generate_boresight_artifact.py {prefix}`; that command fits "
+            "P0-P4, predicts held-out P5, then refits P0-P5 and embeds provenance."
+        )
+    else:
+        print(
+            "This shortened run is useful for diagnostics but is not the recommended "
+            "P0-P5 promotion workflow."
+        )
     return 0
 
 
