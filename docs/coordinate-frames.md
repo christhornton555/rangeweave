@@ -1,6 +1,6 @@
 # Coordinate frames
 
-**Status:** `tof_optical` axes/zone orientation, nominal ToF projection geometry, `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen. The LSM6DSOX package mapping, short-baseline relative-body rotation and reference-rig fixed-plane ToF/body boresight workflow have been physically validated. `mag_sensor -> device_body`, rigid translations and world/local-frame conventions remain open.
+**Status:** `tof_optical` axes/zone orientation, nominal ToF projection geometry, `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen. The LSM6DSOX package mapping, short-baseline relative-body rotation and reference-rig fixed-plane ToF/body boresight workflow have been physically validated, and the exact reference-rig boresight matrix is promoted as a per-device artifact. `mag_sensor -> device_body`, rigid translations and persistent world/local attitude conventions remain open; freezing those attitude conventions is the first task of Phase 3.
 
 Named frames:
 
@@ -150,7 +150,7 @@ All synthetic wall points retain `Z = 1000 mm` exactly.
 
 The fixed-plane solver estimates `R_body_from_tof` from ToF plane normals and relative body rotations while treating the fixed wall's absolute room normal as a nuisance parameter.
 
-The reference rig has now completed the standard P0-P5 validation path. P0-P4 produced a candidate fit of approximately:
+The reference rig completed the standard P0-P5 validation path. P0-P4 produced a candidate fit of approximately:
 
 ```text
 Rx +5.430 deg
@@ -168,20 +168,37 @@ Rz +0.160 deg
 normal RMS 0.797 deg
 ```
 
-Those numbers are per-assembly validation evidence, not universal constants. A promoted artifact stores the exact matrix and provenance rather than relying on the rounded values in documentation.
+Those numbers are per-assembly validation evidence, not universal constants. The promoted artifact under `calibration/` stores the exact matrix and provenance rather than relying on the rounded values in documentation.
 
-For current builder/setup guidance, see [`boresight-calibration.md`](boresight-calibration.md). The recommended target is a clear flat wall patch, P0 approximately 500 mm from the wall; that distance is setup guidance rather than a frame-definition constant.
+For builder/setup guidance, see [`boresight-calibration.md`](boresight-calibration.md).
+
+## Phase 3: persistent attitude conventions
+
+The next estimation layer must not silently inherit rotation conventions from a library or platform API. Before a persistent quaternion attitude state is considered part of the project contract, Phase 3 must explicitly freeze and test:
+
+- quaternion component order;
+- whether the attitude maps `device_body -> local/reference` or the inverse;
+- active/passive interpretation;
+- multiplication/composition order;
+- angular-rate sign/frame convention;
+- gravity direction and startup alignment convention;
+- definition of the initial local/reference frame;
+- treatment of yaw as unobservable in accelerometer+gyro mode.
+
+The first implementation will use gyro + gravity only. Magnetometer heading is a later extension after `mag_sensor -> device_body`, hard/soft-iron calibration and magnetic disturbance gating are physically validated.
+
+See [`orientation-estimation.md`](orientation-estimation.md).
 
 ## Still to freeze / calibrate
 
-Before full IMU/ToF fusion or world-frame reconstruction is considered stable, Rangeweave still needs to document and validate:
+Before full 6DoF fusion or world-frame reconstruction is considered stable, Rangeweave still needs to document and validate:
 
-1. `mag_sensor -> device_body` on the physical build;
-2. quaternion component order and active/passive/multiplication conventions for the future attitude layer;
-3. any broader transform notation used for rigid 6DoF transforms;
-4. portable per-device VL53L5CX intrinsic/ray profiles and exact optical origin where required;
-5. rigid translations between ToF, IMU, magnetometer and body origins where applications require them;
-6. `world` / `local` frame initialization and update conventions;
+1. persistent attitude/quaternion and `world` / `local` initialization/update conventions;
+2. `mag_sensor -> device_body` on the physical build;
+3. magnetic hard-iron/soft-iron calibration and disturbance confidence;
+4. broader transform notation for rigid 6DoF transforms;
+5. portable per-device VL53L5CX intrinsic/ray profiles and exact optical origin where required;
+6. rigid translations between ToF, IMU, magnetometer and body origins where applications require them;
 7. boresight reproducibility across independently assembled units.
 
 No platform-specific API convention may silently become the project convention.
