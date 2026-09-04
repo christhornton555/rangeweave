@@ -32,7 +32,7 @@ class GuidedBoresightTests(unittest.TestCase):
             - guided.DEFAULT_MOVE_SECONDS
         )
         self.assertEqual(guided.DEFAULT_MOVE_SECONDS, 10.0)
-        self.assertEqual(final_hold, 6.0)
+        self.assertEqual(final_hold, 12.0)
         self.assertGreaterEqual(final_hold, 2.0)
 
     def test_motion_schedule_rejects_insufficient_final_hold(self):
