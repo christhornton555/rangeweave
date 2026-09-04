@@ -22,10 +22,12 @@ Develop a small, inexpensive, RGB-free sensing module that combines sparse activ
 - Physical reference-rig LSM6DSOX axis mapping into `device_body`.
 - Short-baseline relative-body rotation with independent accelerometer gravity closure.
 - Acquisition gyro moved to +/-500 deg/s after physical calibration testing exposed the old +/-250 deg/s range limit.
-- Fixed-plane ToF/body boresight sequence/solver has produced a plausible provisional four-pose physical result.
+- Guided fixed-plane ToF/body boresight capture now runs the recommended P0-P5 sequence.
 - Boresight motion and stationary-ToF quality gates are implemented.
+- The reference-rig P0-P5 workflow has passed held-out validation: P5 prediction error 0.644 deg and 0.639 deg final-fit rotation change after revealing P5.
+- A provenance-rich `rangeweave.tof-body-rotation` artifact generator is implemented.
 
-The current focus is finishing the physical ToF/body calibration workflow cleanly, then promoting a versioned per-device extrinsic before moving deeper into orientation/odometry.
+The current focus is finishing Phase 2 repository/promotion housekeeping, then moving to the broader orientation layer.
 
 ## Non-negotiable design principles
 
@@ -88,12 +90,13 @@ Uses measured known planes to refine per-zone geometry inside `tof_optical`. A p
 
 Uses a **single fixed plane** plus relative IMU body rotations to estimate one rigid `R_body_from_tof` rotation. The wall's absolute room orientation is a nuisance parameter and is not measured.
 
-Recommended builder setup is now:
+Recommended builder setup is:
 
 - clear flat wall patch at least ~1 m x 1 m;
 - P0 roughly 500 mm from the wall and approximately square-on;
 - rigid sensing head on a 3-way photographic pan/tilt/roll head or equivalent;
-- moderate multi-axis pose changes rather than exact measured commanded angles.
+- full P0-P5 guided sequence with moderate multi-axis pose changes rather than exact measured commanded angles;
+- P5 ToF held out from the P0-P4 fit before the final six-pose refit.
 
 Current empirical boresight gates:
 
@@ -108,6 +111,8 @@ ToF max half-capture drift <= 10 mm
 
 These are workflow safeguards derived from reference-rig data, not universal sensor specifications.
 
+The final September 2026 reference run used the built-in ToF geometry profile with role `nominal-fallback`; that provenance is recorded explicitly rather than implying intrinsic per-zone calibration.
+
 ## Development phases
 
 | Phase | Current state | Exit gate |
@@ -118,7 +123,7 @@ These are workflow safeguards derived from reference-rig data, not universal sen
 | 1B. MCU portability spike | **PLANNED** | Alternate MCU producer preserves protocol semantics. |
 | 2. Raw viewer + nominal sparse geometry | **IMPLEMENTED / PHYSICALLY EXERCISED** | Real wall/object captures project with the documented orientation/depth convention. |
 | 2A. Optional ToF intrinsic calibration | **IMPLEMENTED CANDIDATE** | Repeatable per-device geometry profile with held-out validation/provenance. |
-| 2B. ToF/body rotational boresight | **PHYSICAL VALIDATION IN PROGRESS** | Guided fixed-wall workflow + held-out validation + promoted versioned artifact. |
+| 2B. ToF/body rotational boresight | **REFERENCE PATH PHYSICALLY VALIDATED** | Guided P0-P5 workflow + held-out validation + versioned artifact generator. Reference artifact file and PR housekeeping are the remaining close-out tasks. |
 | 3. Orientation | **NEXT MAJOR ESTIMATION LAYER** | Rotation-in-place keeps static geometry stable within quantified bounds. |
 | 4. Full calibration suite | **PARTIAL** | Versioned timing/intrinsic/extrinsic artifacts are reproducible and portable. |
 | 5. Known-pose scanner | **PLANNED** | Controlled motion produces consistent geometry. |
@@ -132,12 +137,10 @@ These are workflow safeguards derived from reference-rig data, not universal sen
 
 Current priority order:
 
-1. finish the builder-facing guided boresight command so it owns capture warm-up and HOLD / MOVE NOW / STOP MOVING cues;
-2. run a fresh fixed-wall sequence under the current +/-500 deg/s acquisition configuration using the improved multi-axis fixture;
-3. reserve a geometrically different pose as held-out validation;
-4. promote a per-device `rangeweave.tof-body-rotation` artifact with capture/firmware/geometry provenance;
-5. update PR/documentation and merge Phase 2 only after the physical workflow is internally consistent;
-6. then proceed to the broader orientation layer (gyro + gravity, later confidence-gated magnetometer) and static-geometry validation.
+1. generate and retain the exact reference-rig `rangeweave.tof-body-rotation` artifact from the successful P0-P5 captures;
+2. finish PR/documentation housekeeping and merge Phase 2 only after the generated artifact/provenance has been reviewed;
+3. then proceed to the broader orientation layer (gyro + gravity, later confidence-gated magnetometer) and static-geometry validation;
+4. separately reproduce boresight on independently assembled units before claiming cross-unit equivalence.
 
 Parallel lower-priority portability work remains Android protocol parity and an alternate-MCU producer spike.
 
@@ -148,7 +151,7 @@ Parallel lower-priority portability work remains Android protocol parity and an 
 - replay regression tests using deliberately published small recordings where appropriate;
 - hardware self-test for every physical build;
 - fixed-wall and known-plane calibration tests;
-- held-out calibration observations rather than fitting every captured pose;
+- held-out calibration observations rather than fitting every captured pose without validation;
 - repeatable rotation/translation/return-to-start trajectories;
 - explicit health, range, temporal-stability and observability gates.
 
@@ -161,13 +164,14 @@ Parallel lower-priority portability work remains Android protocol parity and an 
 - protocol v0.1 acquisition/capture/replay works over the reference USB path;
 - physical ToF zone orientation and the nominal axial-Z projection convention are established;
 - the reference-rig LSM6DSOX axis mapping and short-baseline relative-rotation estimator have physical evidence;
-- fixed-plane ToF/body boresight is physically feasible and has produced a plausible provisional result.
+- fixed-plane ToF/body boresight is physically validated through a P0-P5 sequence with held-out P5 prediction and stable six-pose refit;
+- the versioned per-device rotational artifact schema and generator are implemented.
 
-### Experimental / not yet promoted
+### Experimental / not yet generalized
 
 - optional per-device ToF intrinsic calibration;
-- final per-device ToF/body boresight artifact;
-- any workflow currently requiring developer CLI orchestration rather than the planned guided command.
+- boresight reproducibility across independently assembled units;
+- universal numeric acceptance bounds for held-out/final-fit stability across arbitrary fixtures and sensor assemblies.
 
 ### Not yet supported
 
@@ -186,6 +190,7 @@ Parallel lower-priority portability work remains Android protocol parity and an 
 - Pico 2 W is a reference controller, not a protocol dependency;
 - USB-to-PC is the first transport;
 - calibration keeps ToF intrinsic rays separate from rigid ToF/body boresight;
+- the builder boresight sequence is P0-P5 with P5 held out before the final refit;
 - no installed beacons or display-SDK dependency in the core design;
 - ML remains an augmentation to an uncertainty-aware physics/geometry baseline.
 
