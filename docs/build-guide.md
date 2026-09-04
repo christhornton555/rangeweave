@@ -149,7 +149,7 @@ Copy `main.py` **last**. Once it starts, stdout becomes the binary Rangeweave st
 The acquisition firmware and frozen diagnostic serve different purposes and need not use every identical sensor register value. In particular, the current acquisition stream uses:
 
 ```text
-LSM6DSOX accel: 104 Hz, +/-4 g   (CTRL1_XL = 0x48)
+LSM6DSOX accel: 104 Hz, +/-4 g     (CTRL1_XL = 0x48)
 LSM6DSOX gyro:  104 Hz, +/-500 dps (CTRL2_G = 0x44)
 VL53L5CX:       8x8, 15 Hz
 ```
@@ -220,18 +220,41 @@ Refines per-zone geometry inside `tof_optical`. It uses known measured planes an
 
 Estimates the rigid rotation between the ToF optical frame and the assembled `device_body` frame.
 
-Current recommended physical setup:
+Recommended physical setup:
 
 - a flat, clear, preferably matt wall;
 - P0 approximately **500 mm** from the centre of at least a **1 m x 1 m** unobstructed wall patch;
-- sensing head held on a stable 3-axis mount (a photographic 3-way pan/tilt/roll head is convenient);
-- moderate multi-axis movements with clean stationary endpoints.
+- sensing head held on a stable 3-axis mount;
+- moderate multi-axis movements with clean stationary endpoints;
+- enough cable slack that USB/sensor leads do not pull the head as it settles.
+
+A low-cost reference-style fixture can be made with a 3-way photographic head, an upper MDF carrier screwed to the camera screw, the breadboard clamped to that carrier, and a lower MDF/base support attached using the mount's own threaded connector and a support/selfie-stick clamp. This exact arrangement is not required: the important properties are rigid ToF-to-IMU mounting, useful multi-axis adjustment and stable hands-off holds.
 
 Exact wall distance and exact commanded pose angles are not measured solver inputs.
 
-The current developer workflow already checks minimum motion, gyro full-scale use, gravity closure, ToF plane residuals and temporal drift. A single guided builder-facing capture command is still in development.
+Run the standard full P0-P5 workflow, replacing `COM5` as needed:
 
-See [`boresight-calibration.md`](boresight-calibration.md).
+```powershell
+py host/python/guided_boresight.py COM5
+```
+
+The guided command owns the 3 s discarded warm-up, 5 s recorded initial hold, 10 s movement allowance and 12 s hands-off final hold. It displays explicit HOLD / MOVE NOW / STOP MOVING cues and automatically applies minimum-motion, gyro full-scale, gravity-closure, plane-residual and temporal-drift gates.
+
+P5 is the validation pose. After the successful session completes, generate the per-device artifact:
+
+```powershell
+py host/python/generate_boresight_artifact.py <session-prefix>
+```
+
+The generator fits P0-P4 first, predicts P5 using M5's independently measured IMU orientation, compares that prediction with the held-out P5 ToF plane, refits all six accepted poses, and writes:
+
+```text
+calibration/tof-body-rotation-<session-prefix>.json
+```
+
+The artifact embeds the exact rotation matrix, validation/fit diagnostics, capture SHA-256 hashes, `STREAM_INFO`, IMU mapping role, gyro-range provenance, quality gates and ToF geometry-profile role.
+
+See [`boresight-calibration.md`](boresight-calibration.md) for the detailed procedure and [`validation/boresight-reference-rig-2026-09.md`](validation/boresight-reference-rig-2026-09.md) for the physical reference result.
 
 ## 10. Reference-rig calibration facts versus universal requirements
 
@@ -245,9 +268,15 @@ body Z = -imu Y
 
 That is **not** a universal wiring/property of the LSM6DSOX. It depends on how the board is mounted.
 
-Similarly, the current provisional `R_body_from_tof` result is evidence that the calibration method works on the reference rig, not a calibration constant to copy into another build.
+The September 2026 reference assembly also completed P0-P5 boresight validation. Its six-pose result was approximately:
 
-Reproduce the physical mapping/calibration for a differently assembled unit.
+```text
+R_body_from_tof: Rx +5.880  Ry +3.930  Rz +0.160 deg
+normal RMS:      0.797 deg
+held-out P5 error before refit: 0.644 deg
+```
+
+Those values are evidence that the calibration method works on that assembly, **not** calibration constants to copy into another build. Reproduce the physical mapping/calibration for a differently assembled unit.
 
 ## 11. Recovery / returning to Thonny
 
@@ -258,13 +287,14 @@ Keep a local copy of:
 - the exact MicroPython/UF2 version used;
 - `vl53l5cx_firmware.bin` provenance/source;
 - the repository commit/tag;
-- raw validation/calibration captures.
+- raw validation/calibration captures;
+- generated calibration artifacts for that physical unit.
 
 ## 12. What this build does not yet prove
 
 A passing sensor stack/acquisition stream does **not** by itself prove:
 
-- final per-device ToF/body alignment;
+- correct per-device ToF/body alignment without running boresight calibration;
 - magnetometer/world-frame calibration;
 - reliable freehand 6DoF tracking;
 - odometry/loop closure;
