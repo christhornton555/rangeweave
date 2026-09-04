@@ -1,6 +1,6 @@
 # Coordinate frames
 
-**Status:** `tof_optical` axes/zone orientation, nominal ToF projection geometry, `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen. The LSM6DSOX package mapping and short-baseline relative-body rotation have been physically validated on the current reference rig. `mag_sensor -> device_body`, rigid translations and world/local-frame conventions remain open.
+**Status:** `tof_optical` axes/zone orientation, nominal ToF projection geometry, `device_body` axes and the rotational `tof_optical -> device_body` contract are frozen. The LSM6DSOX package mapping, short-baseline relative-body rotation and reference-rig fixed-plane ToF/body boresight workflow have been physically validated. `mag_sensor -> device_body`, rigid translations and world/local-frame conventions remain open.
 
 Named frames:
 
@@ -150,9 +150,27 @@ All synthetic wall points retain `Z = 1000 mm` exactly.
 
 The fixed-plane solver estimates `R_body_from_tof` from ToF plane normals and relative body rotations while treating the fixed wall's absolute room normal as a nuisance parameter.
 
-A four-pose physical sequence on the current reference rig produced a small provisional boresight with ~0.535 deg normal RMS. The result is not yet a promoted artifact because final held-out validation under the newer +/-500 deg/s gyro configuration remains to be completed.
+The reference rig has now completed the standard P0-P5 validation path. P0-P4 produced a candidate fit of approximately:
 
-For current builder/setup guidance, see [`boresight-calibration.md`](boresight-calibration.md). The recommended boresight target is a clear flat wall patch, P0 approximately 500 mm from the wall; that distance is setup guidance rather than a frame-definition constant.
+```text
+Rx +5.430 deg
+Ry +3.780 deg
+Rz -0.300 deg
+normal RMS 0.847 deg
+```
+
+M5 independently established P5's body orientation while P5 ToF was held out from that fit. The predicted and observed P5 wall normals differed by 0.644 deg. Revealing P5 and refitting all six poses changed the fitted rotation by only 0.639 deg, yielding approximately:
+
+```text
+Rx +5.880 deg
+Ry +3.930 deg
+Rz +0.160 deg
+normal RMS 0.797 deg
+```
+
+Those numbers are per-assembly validation evidence, not universal constants. A promoted artifact stores the exact matrix and provenance rather than relying on the rounded values in documentation.
+
+For current builder/setup guidance, see [`boresight-calibration.md`](boresight-calibration.md). The recommended target is a clear flat wall patch, P0 approximately 500 mm from the wall; that distance is setup guidance rather than a frame-definition constant.
 
 ## Still to freeze / calibrate
 
@@ -161,9 +179,9 @@ Before full IMU/ToF fusion or world-frame reconstruction is considered stable, R
 1. `mag_sensor -> device_body` on the physical build;
 2. quaternion component order and active/passive/multiplication conventions for the future attitude layer;
 3. any broader transform notation used for rigid 6DoF transforms;
-4. final held-out per-device `R_body_from_tof` calibration and provenance;
-5. portable per-device VL53L5CX intrinsic/ray profiles and exact optical origin where required;
-6. rigid translations between ToF, IMU, magnetometer and body origins where applications require them;
-7. `world` / `local` frame initialization and update conventions.
+4. portable per-device VL53L5CX intrinsic/ray profiles and exact optical origin where required;
+5. rigid translations between ToF, IMU, magnetometer and body origins where applications require them;
+6. `world` / `local` frame initialization and update conventions;
+7. boresight reproducibility across independently assembled units.
 
 No platform-specific API convention may silently become the project convention.
