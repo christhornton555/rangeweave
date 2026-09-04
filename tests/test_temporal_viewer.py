@@ -107,6 +107,32 @@ class LatestFrameQueueTests(unittest.TestCase):
         self.assertEqual(queue.get_nowait(), "new")
 
 
+class LiveAlignmentSummaryTests(unittest.TestCase):
+    def test_publisher_remembers_final_grid_without_started_viewer(self):
+        publisher = live.LiveDepthPublisher()
+        record = SimpleNamespace(
+            rows=8,
+            cols=8,
+            distance_mm=(1000,) * 64,
+            mcu_ready_us=123_456,
+        )
+
+        publisher.publish(record)
+        fit = publisher.final_alignment()
+
+        self.assertIsNotNone(fit)
+        self.assertAlmostEqual(fit.rotation_x_deg, 0.0, places=9)
+        self.assertAlmostEqual(fit.rotation_y_deg, 0.0, places=9)
+        self.assertAlmostEqual(fit.rms_residual_mm, 0.0, places=9)
+        self.assertAlmostEqual(fit.max_abs_residual_mm, 0.0, places=9)
+        self.assertEqual(fit.valid_zones, 64)
+        self.assertEqual(publisher.alignment_geometry_role, "nominal-fallback")
+
+    def test_final_alignment_is_none_before_any_valid_tof_frame(self):
+        publisher = live.LiveDepthPublisher()
+        self.assertIsNone(publisher.final_alignment())
+
+
 class CaptureLiveTapTests(unittest.TestCase):
     def test_live_tap_preserves_exact_wire_bytes_and_normal_stats(self):
         wire = tof_wire(7, 123_456, [100, 200, 300, 400])

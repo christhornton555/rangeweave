@@ -1,137 +1,149 @@
 # Rangeweave - RGB-Free Active Depth + IMU Spatial Mapping
 
-> **Project status: sensor acquisition baseline validated; protocol/acquisition software is now in development; tracking and 3D reconstruction are work in progress.**
+> **Project status:** reference sensor acquisition, protocol/capture/replay, raw/temporal depth viewing, nominal 64-zone projection and the reference-rig ToF/body rotational boresight workflow are physically validated on the current Pico 2 W stack. World-orientation/odometry and 3D mapping remain work in progress.
 
-This project explores a small, inexpensive, **RGB-free** sensing module that combines sparse time-of-flight depth with inertial sensing. The goal is to turn synchronized depth + motion observations into trajectories, sparse point clouds and eventually 3D maps of objects and environments, while keeping the sensing head compact enough to migrate beyond the current Raspberry Pi Pico prototype.
+Rangeweave explores a small, inexpensive **RGB-free** sensing module combining sparse time-of-flight depth with inertial sensing. The long-term goal is to turn synchronized depth + motion observations into trajectories, sparse point clouds and eventually 3D maps while keeping the sensing head compact and portable beyond the current Raspberry Pi Pico prototype.
 
-The project is deliberately being built in layers. The current reference hardware has demonstrated reliable, timestamped coexistence of an 8x8 VL53L5CX depth sensor, LSM6DSOX accelerometer/gyroscope and LIS3MDL magnetometer. It has **not yet demonstrated robust freehand SLAM or accurate 3D reconstruction**.
+The project is deliberately evidence-first: preserve raw measurements and source timing, validate coordinate frames and calibration physically, and only then build higher-level estimation.
 
-## Why this project exists
-
-Many useful spatial applications do not inherently require an RGB camera. A sparse active-depth + IMU module could be useful for experimentation in handheld scanning, robotics, XR tracking, accessibility, geometry capture and other applications where size, cost or image privacy matter.
-
-“RGB-free” is a capability statement, not a blanket privacy guarantee: depth and motion data can still reveal information about people or spaces depending on how a system is deployed.
-
-## Current validated reference build
+## Current reference hardware
 
 - **MCU:** Raspberry Pi Pico 2 W (RP2350), MicroPython.
-- **IMU bus:** hardware I2C0, GP4 SDA / GP5 SCL, 400 kHz.
-- **Depth bus:** hardware I2C1, GP2 SDA / GP3 SCL, 1 MHz.
-- **Motion sensors:** LSM6DSOX at `0x6A`, LIS3MDL at deterministic `0x1E` (`ADM -> 3V3`).
-- **Depth sensor:** VL53L5CX at `0x29`, 8x8 / 64 zones at approximately 15 fps.
-- **Timing:** LSM6DSOX hardware FIFO + one hardware timestamp record per inertial slot.
-- **Per-unit timing:** `INTERNAL_FREQ_FINE` discovery plus a rolling Pico <-> LSM clock model; downstream code must not assume a fixed real IMU sample rate.
+- **IMU bus:** I2C0, GP4 SDA / GP5 SCL, 400 kHz.
+- **Depth bus:** I2C1, GP2 SDA / GP3 SCL, 1 MHz.
+- **Motion sensors:** LSM6DSOX at `0x6A`; LIS3MDL at deterministic `0x1E` (`ADM -> 3V3`).
+- **Depth sensor:** VL53L5CX at `0x29`, 8x8 / 64 zones at ~15 Hz.
+- **Timing:** LSM6DSOX FIFO timestamps plus recorded Pico<->LSM `CLOCK_SYNC` observations; hosts do not assume nominal ODR is exact.
+- **Acquisition gyro:** current stream firmware uses `CTRL2_G = 0x44` (104 Hz, +/-500 deg/s) to give calibration motions adequate rate headroom.
 
-The reference v0.5 diagnostic run reached `SYSTEM READY: PASS` with aligned accel/gyro/timestamp records, 100% magnetometer acquisition during the startup window, approximately 15 fps depth acquisition, and no reported FIFO or sensor I/O errors. See [the validation record](docs/validation/reference-unit-v0.5.md).
+The frozen hardware diagnostic remains the first reproduction gate and should reach `SYSTEM READY: PASS` before using the acquisition stream. The acquisition producer has also demonstrated lossless steady-state USB capture on the reference unit.
 
-## Architecture
+## What works now
 
-```mermaid
-flowchart TD
-    A[LSM6DSOX accel + gyro] --> D[Sensor acquisition]
-    B[LIS3MDL magnetometer] --> D
-    C[VL53L5CX sparse depth] --> D
-    D --> E[Versioned record / packet model]
-    E --> F[Transport adapter]
-    F --> G[USB - current prototype]
-    F --> H[BLE / Wi-Fi - planned]
-    F --> I[Local storage - planned]
-    G --> J[Python PC reference host]
-    H --> K[Android / other hosts]
-    I --> L[Replay]
-    J --> M[Geometry + estimation core]
-    K --> M
-    L --> M
-    M --> N[Point clouds / pose / maps]
-```
+**Physically validated on the current reference rig**
 
-The **packet/record model is intended to be the portability boundary**. USB and Pico-specific details must not leak into the meaning of sensor records. That lets us prototype over Pico USB now while keeping an ESP32-class controller, Android host, BLE/Wi-Fi transport and standalone logging viable later.
+- split-bus ToF + inertial acquisition;
+- FIFO protection/timestamp parsing and per-unit clock correlation;
+- deterministic LIS3MDL addressing;
+- loss-detectable Rangeweave v0.1 binary stream over USB CDC;
+- canonical Python capture/replay path;
+- physical VL53L5CX zone orientation and nominal 64-zone projection convention;
+- live/temporal raw-depth viewing and sparse point-cloud inspection;
+- current reference-rig `imu_sensor -> device_body` axis mapping;
+- short-baseline relative-body gyro integration with independent gravity closure;
+- gyro full-scale quality checking;
+- guided fixed-plane ToF/body boresight capture through P0-P5;
+- stationary ToF plane/temporal quality gates;
+- held-out P5 validation of the P0-P4 boresight fit;
+- stable six-pose final refit on the reference assembly.
+
+The September 2026 reference run predicted a held-out P5 ToF wall normal to **0.644 deg** and changed the fitted extrinsic by only **0.639 deg** after P5 was revealed. The six-pose result was approximately `Rx +5.880, Ry +3.930, Rz +0.160 deg` with `0.797 deg` normal RMS. These numbers describe that assembly only; other units must be calibrated independently.
+
+**Implemented / experimental**
+
+- optional per-device VL53L5CX known-plane intrinsic calibration tooling;
+- versioned `rangeweave.tof-body-rotation` extrinsic representation and fixed-plane solver;
+- provenance-rich per-device boresight artifact generation;
+- developer replay/inspection tooling for individual calibration captures.
+
+**Still open**
+
+- independent cross-unit reproduction of the boresight workflow;
+- magnetometer/body calibration and world-frame attitude conventions;
+- rigid translation between sensor origins where required;
+- robust freehand 6DoF tracking, odometry, loop closure and metrically validated 3D reconstruction;
+- Android/BLE/Wi-Fi/ESP32 production parity.
 
 ## Quick start: reproduce the sensor stack
 
 1. Read the [build guide](docs/build-guide.md).
-2. Assemble the reference hardware using [the Pico 2 W wiring sheet](hardware/wiring/pico2w-reference.md).
-3. Install the validated class of Pimoroni RP2350/Pico 2 W MicroPython build described in the guide. The UF2 is **not vendored here**.
-4. Obtain the VL53L5CX firmware blob as described in the guide or use [`tools/fetch_vl53l5cx_firmware.py`](tools/fetch_vl53l5cx_firmware.py). The blob is **not vendored here**.
-5. Bring up the system in order:
-   - [`i2c_scan.py`](firmware/pico2w/diagnostics/i2c_scan.py)
-   - [`imu_bringup.py`](firmware/pico2w/diagnostics/imu_bringup.py)
-   - [`tof_bringup.py`](firmware/pico2w/diagnostics/tof_bringup.py)
-   - [`reproducible_sensor_stack.py`](firmware/pico2w/diagnostics/reproducible_sensor_stack.py)
-6. Do not proceed to motion datasets until the full diagnostic reports `SYSTEM READY: PASS`.
+2. Assemble the [Pico 2 W reference wiring](hardware/wiring/pico2w-reference.md).
+3. Install the validated class of Pimoroni RP2350/Pico 2 W MicroPython build described in the guide.
+4. Obtain `/vl53l5cx_firmware.bin` as described in the guide or with [`tools/fetch_vl53l5cx_firmware.py`](tools/fetch_vl53l5cx_firmware.py).
+5. Bring up the system in order using the diagnostics in [`firmware/pico2w/diagnostics/`](firmware/pico2w/diagnostics/).
+6. Require `SYSTEM READY: PASS` before moving to the binary acquisition producer in [`firmware/pico2w/acquisition/`](firmware/pico2w/acquisition/).
+7. Use [`host/python/capture.py`](host/python/capture.py) for canonical captures and the documented host inspection tools for replay/geometry/calibration.
 
-A second healthy physical IMU **does not need to reproduce the reference unit's ~101.06 Hz measured rate**. The firmware explicitly discovers and measures each unit's time base.
+A healthy second IMU does not have to reproduce the exact measured rate of the first reference unit; timing is discovered and recorded per device.
 
-## What works now
+## Calibration: two different jobs
 
-**VALIDATED on the current reference unit**
+Rangeweave deliberately separates:
 
-- Split-bus sparse depth + inertial acquisition.
-- LSM6DSOX FIFO protection during long VL53L5CX frame transfers.
-- Hardware FIFO timestamp parsing and slot-integrity checks.
-- Per-device oscillator/timestamp characterization.
-- Pico <-> LSM clock correlation.
-- Deterministic LIS3MDL addressing and reliable magnetometer acquisition under the tested workload.
-- Reproducibility self-test for newly assembled reference stacks.
+1. **ToF intrinsic/ray calibration** — optional refinement of the 64 rays inside `tof_optical`; see [the intrinsic known-plane workflow](docs/tof-calibration-plane-workflow.md).
+2. **ToF/body boresight calibration** — one rigid rotation `R_body_from_tof` for the assembled head; see [the boresight guide](docs/boresight-calibration.md).
 
-**EXPERIMENTAL / implementation candidate**
+For boresight, the default physical target is a clear flat wall: P0 roughly 500 mm from the centre of at least a 1 m x 1 m unobstructed patch. A stable 3-way photographic head or equivalent fixture is a convenient way to hold and reposition a breadboard/sensor package. Exact wall distance and exact pose angles are not solver measurements.
 
-- Rangeweave wire protocol v0.1: COBS framing, CRC16, global packet sequence and `IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC`, `STATUS` and `STREAM_INFO` records.
-- Source clock domains preserved explicitly so replay can refit the common timeline rather than inheriting a firmware-derived mapped timestamp.
-- Standard-library Python protocol decoder/stream parser.
-- Shared byte-level golden fixtures and corruption/resynchronisation tests.
+The standard builder command is now the full P0-P5 sequence:
 
-**NEXT**
+```powershell
+py host/python/guided_boresight.py COM5
+```
 
-- Implement Pico acquisition firmware separate from diagnostic firmware, including the packetizer/queue and `STREAM_INFO`/health emission.
-- Implement Python USB capture + lossless recording + replay.
-- Implement a Kotlin/Android parser using the same golden packet fixtures.
-- Run an ESP32-class portability spike before the host architecture becomes Pico-specific.
-- Build the first calibrated 64-point depth projection and live sparse point-cloud viewer.
+After a clean run, generate the per-device artifact with:
 
-**NOT YET CLAIMED**
+```powershell
+py host/python/generate_boresight_artifact.py <session-prefix>
+```
 
-- Reliable freehand 6DoF tracking.
-- Loop closure.
-- Dense or metrically accurate object/room reconstruction.
-- Android, BLE/Wi-Fi or ESP32 implementations.
-- Guaranteed reproducibility across arbitrary third-party assemblies.
+That command fits P0-P4, checks P5 as held-out ToF, refits P0-P5, and writes a versioned `rangeweave.tof-body-rotation` JSON artifact with capture/configuration provenance.
+
+## Architecture
+
+```text
+SENSORS
+  LSM6DSOX     LIS3MDL      sparse ToF
+      \            |            /
+       SENSOR-ACQUISITION LAYER
+        raw samples + timestamps
+                  |
+          PACKET / RECORD MODEL
+       versioned, language-neutral
+                  |
+          TRANSPORT ADAPTER
+     USB now | BLE/Wi-Fi later
+                  |
+       HOST CAPTURE / REPLAY API
+          PC Python | Android
+                  |
+        GEOMETRY / ESTIMATION CORE
+ orientation -> rays -> pose -> map
+                  |
+        VISUALISATION / APPLICATIONS
+```
+
+The packet/record model is the portability boundary. Pico GPIOs, MicroPython objects and USB-specific behaviour must not define sensor-data meaning.
 
 ## Repository map
 
-- [`docs/`](docs/) - build guide, roadmap, architecture, ADRs, calibration/porting notes and validation evidence.
-- [`firmware/pico2w/diagnostics/`](firmware/pico2w/diagnostics/) - curated builder-facing hardware diagnostics.
-- [`firmware/pico2w/acquisition/`](firmware/pico2w/acquisition/) - next sensor-stream firmware stage.
-- [`firmware/esp32/`](firmware/esp32/) - planned portability work.
-- [`protocol/`](protocol/) - language-neutral wire specification and golden vectors.
-- [`host/python/`](host/python/) - Python reference protocol implementation and future capture/replay/geometry stack.
-- [`android/`](android/) - Android portability notes and future implementation.
+- [`docs/`](docs/) - build, architecture, calibration, coordinate-frame and validation documentation.
+- [`firmware/pico2w/diagnostics/`](firmware/pico2w/diagnostics/) - builder-facing hardware self-test.
+- [`firmware/pico2w/acquisition/`](firmware/pico2w/acquisition/) - binary acquisition producer.
+- [`protocol/`](protocol/) - language-neutral wire specification and fixtures.
+- [`host/python/`](host/python/) - capture/replay, geometry, viewers and calibration reference implementation.
+- [`android/`](android/) - Android portability notes/future implementation.
 - [`hardware/`](hardware/) - BOM, wiring and mechanical/PCB notes.
-- [`datasets/`](datasets/) - policy and, later, small intentionally published golden recordings.
-- [`sim/`](sim/) - future simulation / ML data-generation work.
+- [`datasets/`](datasets/) - dataset policy and future published reference recordings.
 
-For the complete intended layout, see [Repository layout](docs/repository-layout.md).
+Start with the [documentation index](docs/README.md) and [project plan](docs/project-plan.md).
 
 ## Engineering rules
 
 1. Preserve raw measurements and explicit timestamps.
 2. Never infer time from sample index or nominal ODR.
-3. Keep sensor semantics independent of USB, MicroPython and Pico GPIOs.
+3. Keep sensor semantics independent of transport and MCU implementation.
 4. Make live and replayed data enter the same host APIs.
-5. Define coordinate frames, units and byte order explicitly.
-6. Keep uncertainty rather than forcing a confident pose when motion is poorly observable.
+5. Define coordinate frames, units and transform direction explicitly.
+6. Keep uncertainty/failure visible instead of forcing a confident pose.
 7. Use conventional physics/geometry baselines before learned corrections.
-8. Mark capabilities **VALIDATED**, **EXPERIMENTAL** or **PLANNED**.
-9. Keep Android and small-MCU portability notes alongside new features, not as a cleanup task years later.
+8. Label claims as validated, experimental or planned.
+9. Keep calibration intrinsics, rigid extrinsics and runtime estimator state separate.
 
-See the [project plan](docs/project-plan.md) and [architecture decision records](docs/adr/README.md).
+## Not yet claimed
 
-## Contributing
+Rangeweave does not yet claim reliable freehand SLAM, dense reconstruction, loop closure, cross-unit calibration equivalence or privacy guarantees merely because RGB is absent.
 
-Contributions are welcome. Please start with [CONTRIBUTING.md](CONTRIBUTING.md). Hardware bug reports are most useful when they include the bus scan, sensor IDs, complete reproducibility self-test, MicroPython runtime string and a clear wiring photo.
+## Contributing and license
 
-The early experimental scripts that led to the final bus/FIFO/timestamp architecture are intentionally **not** part of the normal source tree. Their conclusions are summarized in [development history](docs/development-history.md); Git history should carry future iterations from this point onward.
-
-## License
-
-See [LICENSE](LICENSE). No third-party firmware binaries are included in this repository; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md), [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Hardware reproduction reports are most useful when they include bus scans, sensor IDs, self-test output, runtime version, capture metadata and clear physical mounting/wiring information.

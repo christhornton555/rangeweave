@@ -55,7 +55,10 @@ MAG_STATUS_REG = 0x27
 MAG_OUT_X_L = 0x28
 
 LSM_CTRL1_XL_VALUE = 0x48
-LSM_CTRL2_G_VALUE = 0x40
+# 104 Hz, +/-500 dps. The earlier +/-250 dps setting was exceeded during a
+# physically valid mixed-axis boresight motion, so calibration capture now keeps
+# additional rate headroom without changing the ODR.
+LSM_CTRL2_G_VALUE = 0x44
 LSM_CTRL3_C_VALUE = 0x44
 LSM_FIFO_CTRL3_VALUE = 0x44
 LSM_FIFO_CTRL4_VALUE = 0x46

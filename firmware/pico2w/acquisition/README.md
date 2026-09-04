@@ -1,239 +1,152 @@
 # Pico 2 W acquisition firmware
 
-**Status: HARDWARE-VALIDATED v0.1 candidate.**
+**Status: hardware-validated Rangeweave v0.1 acquisition producer on the current reference stack.**
 
-This directory contains the first Rangeweave acquisition producer for the validated Pico 2 W reference sensor stack. It is deliberately separate from [`../diagnostics/reproducible_sensor_stack.py`](../diagnostics/reproducible_sensor_stack.py): the diagnostic remains the reproduction/self-test tool, while this firmware emits the binary [Rangeweave protocol v0.1](../../../protocol/spec-v0.1.md) stream used by capture/replay software.
+This directory is separate from [`../diagnostics/reproducible_sensor_stack.py`](../diagnostics/reproducible_sensor_stack.py). The diagnostic is the builder/reproduction self-test; this acquisition firmware emits the binary [Rangeweave protocol v0.1](../../../protocol/spec-v0.1.md) stream consumed by host capture/replay tools.
 
-The protocol/packetizer path passes host-side conformance tests, and the final physical validation run on the reference stack produced a lossless steady-state stream with zero sensor/FIFO errors and a measured VL53L5CX acquisition rate of 14.9955 Hz against a configured 15 Hz.
+The protocol/packetizer path passes host-side conformance tests, and physical reference runs have demonstrated lossless steady-state USB streaming with zero measured sensor/FIFO/sequence/drop errors and VL53L5CX acquisition close to the configured 15 Hz.
 
 ## Files
 
 ```text
 main.py                 acquisition scheduler / record production
 rw_protocol.py          MicroPython protocol-v0.1 encoder
-rw_sensors.py           validated sensor configuration + raw acquisition
-rw_timing.py            hardware-independent 32->64-bit LSM timestamp extension
-rw_transport_usb.py     first transport adapter: USB CDC stdout
+rw_sensors.py           sensor configuration + raw acquisition
+rw_timing.py            32->64-bit LSM timestamp extension
+rw_transport_usb.py     USB CDC transport adapter
 ```
 
-On the Pico, copy all five files to the filesystem root using the filenames above. The VL53L5CX firmware blob must already be present as `/vl53l5cx_firmware.bin` as described in the build guide.
+Copy these files to the Pico filesystem root using the same names. `/vl53l5cx_firmware.bin` must already be present as described in the [build guide](../../../docs/build-guide.md).
 
-The `rw_` prefixes are intentional: these modules are copied to the Pico root for now, so generic names such as `protocol.py` or `sensors.py` would create avoidable collision risk. A later packaged MCU implementation may use a different filesystem layout without changing protocol semantics.
+Copy `main.py` last: once it starts, stdout becomes a binary stream and readable REPL text is no longer expected.
 
-## Architecture boundary
+## Current acquisition source profile
 
-```text
-validated sensors/FIFO
-        |
-  raw acquisition
-        |
- record creation
-        |
- Rangeweave packetizer
-        |
- complete-frame queue
-        |
- transport adapter
-        |
-     USB CDC now
-```
-
-`rw_protocol.py`, record semantics and timestamps know nothing about USB. `rw_transport_usb.py` knows nothing about the sensors. This is the same boundary a future ESP32/BLE/Wi-Fi/local-storage producer must preserve.
-
-## Current source profile
-
-`SOURCE_PROFILE` is:
+`SOURCE_PROFILE`:
 
 ```text
 pico2w-lsm6dsox-lis3mdl-vl53l5cx-8x8-15hz
 ```
 
-The reference configuration mirrors the validated diagnostic baseline:
+Current acquisition configuration:
 
 - LSM6DSOX + LIS3MDL on I2C0, GP4/GP5, 400 kHz;
 - VL53L5CX on I2C1, GP2/GP3, 1 MHz;
-- LSM6DSOX accel `0x48`, gyro `0x40`, BDU/IF_INC `0x44`;
-- FIFO accel/gyro BDR `0x44` and FIFO/timestamp mode `0x46`;
+- LSM6DSOX accel `CTRL1_XL = 0x48` (104 Hz, +/-4 g);
+- LSM6DSOX gyro `CTRL2_G = 0x44` (**104 Hz, +/-500 deg/s**);
+- BDU/IF_INC `CTRL3_C = 0x44`;
+- FIFO accel/gyro BDR `0x44`, FIFO/timestamp mode `0x46`;
 - FIFO serviced on the validated 20 ms host cadence;
 - LIS3MDL control bytes `74 00 00 0c 40`;
 - VL53L5CX 8x8 at 15 Hz;
 - LIS3MDL address fixed at `0x1E` by `ADM -> 3V3`.
 
-`STREAM_INFO` reports the observed WHO_AM_I values, `INTERNAL_FREQ_FINE`, actual programmed control bytes and ToF profile at runtime rather than making the host infer them.
+`STREAM_INFO` reports the actual runtime register/configuration bytes. Host analysis must read those bytes rather than assuming a scale.
 
-### Current VL53L5CX binding limitation
+### Why the gyro is now +/-500 deg/s
 
-The validated Pimoroni MicroPython binding exposes full `distance` and `reflectance` arrays, but does not expose ST's per-zone `target_status` array. The current producer therefore emits `TOF_GRID` with field mask `0x0003` (distance + reflectance) rather than fabricating a validity field.
+The earlier acquisition configuration used `CTRL2_G = 0x40` (+/-250 deg/s), matching the original diagnostic baseline. During physical ToF/body boresight testing, one legitimate mixed-axis motion reached about 267 deg/s on the mapped body-X axis and produced a large gyro/gravity closure failure.
 
-The upstream ST result structure represents `distance_mm` as signed 16-bit values, while protocol v0.1 currently specifies its `DISTANCE_MM` field as uint16. This producer **does not silently wrap negative driver values**: if a negative/out-of-range distance is observed, that ToF frame is rejected and `tof_errors` increments. No such value occurred in the reference validation runs, so this remains an explicit protocol edge case rather than a demonstrated failure mode.
+The acquisition firmware was therefore changed to `0x44`, keeping the same nominal 104 Hz ODR while doubling rate headroom. Follow-up physical tests recovered simple and compound rotations with sub-degree gravity closure while using only about 14% of the new full scale.
+
+The host boresight path now also checks full-scale utilisation directly: warning at 80%, rejection at 90% of the range reported by `STREAM_INFO`.
+
+The frozen diagnostic/self-test firmware may retain the older diagnostic configuration because its role is hardware reproduction, not calibration-motion capture. Do not infer acquisition configuration from the diagnostic source; use `STREAM_INFO` from the actual acquisition stream.
 
 ## Timestamp handling
 
-The acquisition firmware preserves source clock domains exactly as protocol v0.1 requires.
+The producer preserves source clock domains:
 
-- Each complete IMU slot carries an extended native LSM timestamp tick.
-- MAG carries MCU-before/after timestamps bracketing the successful raw XYZ read.
-- ToF carries the MCU time at which software observed data-ready and the time after the complete frame read.
-- `CLOCK_SYNC` carries MCU-before / extended-LSM-tick / MCU-after for a direct timestamp-register read.
+- each complete IMU slot carries an extended native LSM timestamp tick;
+- MAG records carry Pico before/after read brackets;
+- ToF records carry Pico data-ready-observation/read-complete timestamps;
+- `CLOCK_SYNC` records carry Pico-before / LSM-tick / Pico-after observations.
 
-A direct LSM timestamp read can be newer than FIFO records still waiting in backlog. `LsmTickExtender` therefore maps nearby 32-bit observations into one 64-bit epoch without moving its anchor backwards when an older FIFO timestamp arrives. This behaviour is regression-tested on the host.
+No firmware-derived common-time estimate is written into sensor records. Replay/host code can therefore refit the sensor-clock relationship later.
 
-No firmware-derived common-time estimate is written into sensor records.
+A direct LSM timestamp read can be newer than FIFO records waiting in backlog. `LsmTickExtender` maps nearby 32-bit observations into one 64-bit epoch without moving its anchor backwards when an older FIFO timestamp arrives.
 
-## IMU batching and queueing
+## IMU batching, queueing and loss visibility
 
-Complete timestamped IMU slots are batched four at a time. A partial batch is flushed after 50 ms, so batching reduces frame overhead without inferring sample timing from batch position.
+Timestamped IMU slots are batched four at a time, with partial batches flushed after 50 ms.
 
-Complete encoded frames enter a fixed 32-frame queue before transport. Sequence numbers are allocated **before** queue admission. If the transport cannot keep up, a dropped frame therefore creates both:
+Complete encoded frames enter a fixed queue before transport. Sequence numbers are allocated before queue admission. If transport cannot keep up, loss becomes visible as both sequence gaps and cumulative `STATUS` counter changes rather than hidden timing corruption.
 
-- a detectable sequence gap on the receiver; and
-- an increment in the appropriate `STATUS` counters.
+The USB adapter writes bounded bursts rather than one tiny chunk per scheduler pass. The packet CRC implementation uses a nibble lookup table; both changes were required to sustain the validated producer rate under MicroPython.
 
-This is deliberate: transport backpressure must become observable data loss, not hidden sensor-timing damage.
+## VL53L5CX binding limitation
 
-## USB transport and packetizer behaviour
+The current Pimoroni MicroPython binding exposes distance and reflectance arrays but not ST's per-zone `target_status`. `TOF_GRID` therefore uses field mask `0x0003` (distance + reflectance) rather than inventing validity metadata.
 
-The first adapter writes binary frames to MicroPython's built-in USB CDC stdout stream in bounded chunks. It attempts non-blocking/polling-first writes when the runtime exposes `select.poll()` support.
-
-`exp1` allowed only one 64-byte write chunk per scheduler pass. Physical testing showed that sensor/I2C work makes scheduler passes much less frequent than the nominal 1 ms loop sleep, limiting sustained transport below the producer rate. The validated implementation therefore allows a bounded burst of up to four 64-byte chunks per scheduler pass. This can clear a complete multi-chunk ToF record without allowing USB work to monopolise the acquisition scheduler.
-
-A second performance issue was found in the original reference-style Pico CRC implementation. Bit-at-a-time CRC-16/CCITT-FALSE required eight Python bit iterations per framed byte; under the full acquisition workload that consumed enough MCU time to reduce the observed ToF cadence. The validated implementation uses a 16-entry nibble lookup table, reducing the hot path to two lookup/shift steps per byte while producing exactly the same protocol bytes. The shared golden-vector tests protect that equivalence.
-
-The first byte emitted by the adapter is a standalone `0x00` delimiter. This gives a Rangeweave receiver a clean framing boundary after any textual MicroPython soft-reset/startup bytes that may have appeared before `main.py` took over stdout.
-
-After successful initialization, **do not expect readable text in the Thonny Shell**. The stream is binary by design, and acquisition code must not mix `print()` diagnostics into it.
-
-## Physical validation evidence
-
-Before acquisition testing, the frozen diagnostic again reached `SYSTEM READY: PASS` with aligned `1213/1213/1213` accel/gyro/timestamp FIFO records, exact 384-tick slot spacing, `120/120` magnetometer reads, 179 ToF frames at 14.906 fps and zero sensor/FIFO errors.
-
-### exp1 — transport bottleneck exposed
-
-The first 15-second Rangeweave acquisition measurement produced valid frames but saturated the 32-frame transport queue:
-
-```text
-bad frames:  0
-seq gaps:    129
-CLOCK_SYNC:  12
-IMU_BATCH:   300
-MAG:         136
-STATUS:      14
-STREAM_INFO: 2
-TOF_GRID:    176
-```
-
-Across the measured window `frames_dropped` increased by 125 and `imu_samples_dropped` by 296, while FIFO/sensor error counters remained zero. This classified the result as a transport throughput failure, not a sensor-acquisition failure, and confirmed that queue overload became explicit packet loss rather than hidden corruption.
-
-### exp2 — lossless transport, reduced ToF cadence
-
-Allowing bounded four-chunk USB bursts and restoring the validated 20 ms FIFO service cadence produced a clean 15-second measured window:
-
-```text
-bad frames:                    0
-seq gaps:                      0
-frames_dropped delta:          0
-imu_samples_dropped delta:     0
-fifo_overruns delta:           0
-fifo_structural_errors delta:  0
-mag_errors delta:              0
-tof_errors delta:              0
-clock_sync_errors delta:       0
-```
-
-The ToF stream was only about 13.1 Hz, however, despite `get_data()` itself remaining near 18.9 ms.
-
-### exp3 — scheduler-order hypothesis rejected
-
-Moving FIFO service behind ToF polling did not improve the result; ToF fell to about 12.4 Hz while the stream remained lossless. This falsified scheduler priority as the main cause and retained the exp2 scheduler as the better baseline.
-
-### exp4 — hardware-validation pass
-
-Optimising only the Pico CRC hot path while keeping the exp2 scheduler/transport restored the expected ToF cadence. The 15-second live probe reported:
-
-```text
-bad frames:    0
-seq gaps:      0
-CLOCK_SYNC:    15
-IMU_BATCH:     382
-MAG:           150
-STATUS:        15
-STREAM_INFO:   1
-TOF_GRID:      225
-
-frames_dropped delta:          0
-imu_samples_dropped delta:     0
-fifo_overruns delta:           0
-fifo_structural_errors delta:  0
-mag_errors delta:              0
-tof_errors delta:              0
-clock_sync_errors delta:       0
-```
-
-The final status had `queue_high_water = 6`, `status_flags = 3`, and all cumulative acquisition/drop/error counters at zero.
-
-Offline analysis of the same raw capture found 271 ToF records spanning 18.005383 s, for an observed rate of **14.9955 Hz** against the configured 15 Hz. `get_data()` averaged 18.7566 ms, and every recorded IMU native timestamp delta was exactly 384 ticks.
-
-`mcu_ready_us` is a Pico software-observation timestamp, not a VL53L5CX hardware frame timestamp. Individual ready-observation intervals therefore contain scheduler jitter and must not be interpreted independently as proof of skipped sensor frames. The meaningful evidence is the net observed rate over the capture together with sequence and `STATUS` health data.
-
-This exp4 behaviour is now folded into canonical `main.py`/`rw_protocol.py`; temporary experimental harnesses are not part of the promoted implementation.
+Negative/out-of-range driver distances are rejected rather than silently wrapping into protocol uint16 values; such a frame increments `tof_errors`.
 
 ## Hardware-validation procedure
 
-1. First run the frozen diagnostic firmware and confirm the reference stack still reaches `SYSTEM READY: PASS`.
-2. In Thonny, copy these four support modules to the Pico root:
-   - `rw_protocol.py`
-   - `rw_sensors.py`
-   - `rw_timing.py`
-   - `rw_transport_usb.py`
-3. Copy this acquisition `main.py` to the Pico **last**. Once it starts, stdout becomes a binary stream.
-4. Ensure `/vl53l5cx_firmware.bin` is still present.
-5. Close/disconnect Thonny so it releases the Pico COM port.
-6. On the PC, install pyserial if needed:
+1. Run the frozen diagnostic firmware first and require `SYSTEM READY: PASS`.
+2. Copy `rw_protocol.py`, `rw_sensors.py`, `rw_timing.py`, `rw_transport_usb.py` to the Pico root.
+3. Copy acquisition `main.py` last.
+4. Confirm `/vl53l5cx_firmware.bin` remains present.
+5. Close/disconnect Thonny so the COM port is free.
+6. Install pyserial on the PC if required:
 
    ```powershell
    py -m pip install pyserial
    ```
 
-7. From the repository root, run the smoke probe, replacing `COM7` with the Pico port:
+7. From the repository root, run a smoke probe, replacing the port as needed:
 
    ```powershell
-   py host/python/probe_serial.py COM7 --warmup 3 --seconds 15 --output packets.bin
+   py host/python/probe_serial.py COM5 --warmup 3 --seconds 15 --output packets.bin
    ```
 
-The three-second warm-up deliberately ignores any queue backlog/drop counters accumulated while no host had the USB stream open. The measured window is what we use for the steady-state judgement.
+Pass criteria for the measured interval:
 
-### Pass criteria
-
-For the measured window, the target is:
-
-- valid Rangeweave frames are received;
+- valid Rangeweave frames received;
 - `bad frames = 0`;
 - `seq gaps = 0`;
-- `IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC`, `STATUS` and `STREAM_INFO` are all observed as expected for their rates;
-- deltas for `frames_dropped`, `imu_samples_dropped`, `fifo_overruns`, `fifo_structural_errors`, `mag_errors`, `tof_errors` and `clock_sync_errors` are all zero.
+- expected record families (`IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC`, `STATUS`, `STREAM_INFO`) observed;
+- deltas for drops, FIFO structural/overrun errors and sensor/clock-sync errors remain zero.
 
-Approximate healthy 15-second counts are ~380 `IMU_BATCH`, ~150 `MAG`, ~225 `TOF_GRID`, ~15 `CLOCK_SYNC`, ~15 `STATUS` and one or two `STREAM_INFO` records. These are sanity ranges, **not protocol requirements**; timing on the physical unit is the source of truth.
+Approximate healthy 15-second counts on the reference unit were ~380 `IMU_BATCH`, ~150 `MAG`, ~225 `TOF_GRID`, ~15 `CLOCK_SYNC`, ~15 `STATUS` and one or two `STREAM_INFO` records. Treat these as sanity ranges, not protocol requirements.
 
-If the probe exits non-zero, keep its summary plus the resulting `packets.bin` and return to the frozen diagnostic before changing sensor registers.
-
-For offline timing inspection of a saved capture:
+For offline timing inspection:
 
 ```powershell
 py host/python/analyze_capture.py packets.bin
 ```
 
-## Getting the Pico back into development mode
+For canonical capture sessions:
 
-Because `main.py` starts automatically and emits binary data, reconnecting a REPL can be less pleasant than with the diagnostic scripts. If needed, interrupt the running script with Ctrl-C from a serial/Thonny connection; if that is not practical, use the normal BOOTSEL/reflash recovery path and restore the validated MicroPython image. Keep the diagnostic source and firmware blob on the PC so recovery is deterministic.
+```powershell
+py host/python/capture.py COM5 --seconds 10 --name example
+```
 
-## What this revision intentionally does not do
+`capture.py` defaults to a 3-second warm-up before recorded data begins. Developer motion tests must account for that; the planned guided boresight command will own this timing and provide explicit movement cues.
 
-- no point projection, orientation fusion, SLAM or mapping;
-- no conversion of raw IMU/magnetometer counts into physical units on the MCU;
-- no host-to-device command channel;
-- no compression;
-- no BLE/Wi-Fi transport;
-- no stable hardware/device identifier;
-- no target-status synthesis when the current driver does not expose it.
+## Calibration-motion inspection
 
-Those are later layers. The purpose of this revision is to prove that the validated sensor stack can produce a loss-detectable, replayable Rangeweave byte stream without reintroducing the timing failures that motivated the FIFO/split-bus architecture.
+Current host tooling can inspect the acquisition gyro configuration and physical motion quality:
+
+```powershell
+py host/python/inspect_relative_rotation.py <capture>
+```
+
+For the current reference rig, the physically validated mapping is:
+
+```text
+body X = -imu X
+body Y = -imu Z
+body Z = -imu Y
+```
+
+That mapping is assembly-specific and must not be copied to a differently mounted IMU without physical validation.
+
+See [`../../../docs/boresight-calibration.md`](../../../docs/boresight-calibration.md) and [`../../../docs/validation/boresight-reference-rig-2026-09.md`](../../../docs/validation/boresight-reference-rig-2026-09.md).
+
+## Getting back to development mode
+
+Because `main.py` starts automatically and emits binary data, interrupt it with Ctrl-C from Thonny/serial when practical. If necessary, use BOOTSEL/reflash recovery and restore the validated MicroPython image. Keep the diagnostic source and VL53L5CX firmware blob available on the PC.
+
+## Not implemented in this firmware layer
+
+The MCU producer intentionally does not perform point projection, world-attitude fusion, SLAM, mapping, compression, host command/control or BLE/Wi-Fi transport. Those belong above/beside the transport-independent record layer.
