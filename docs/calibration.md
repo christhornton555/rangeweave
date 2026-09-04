@@ -33,11 +33,11 @@ Once the sensing head is rigidly mounted:
 - later `mag_sensor -> device_body`;
 - later physical sensor-origin offsets / rigid translations.
 
-The current reference rig has physically validated its LSM6DSOX package-axis mapping and a short-baseline relative-body rotation estimator. The ToF/body rotational boresight path has also produced a plausible provisional physical solve.
+The current reference rig has physically validated its LSM6DSOX package-axis mapping, short-baseline relative-body rotation estimator and fixed-plane ToF/body rotational boresight workflow.
 
-For **ToF/body boresight**, the recommended target is now a fixed flat wall: P0 approximately 500 mm from the centre of a clear ~1 m x 1 m wall area. Exact wall distance and exact square alignment are not calibration measurements; they simply provide field-of-view margin for later poses. See [`boresight-calibration.md`](boresight-calibration.md).
+For **ToF/body boresight**, the recommended target is a fixed flat wall: P0 approximately 500 mm from the centre of a clear ~1 m x 1 m wall area. Exact wall distance and exact square alignment are not calibration measurements; they simply provide field-of-view margin for later poses. The standard builder sequence now runs P0-P5, with P5 held out from the P0-P4 fit before the final six-pose refit. See [`boresight-calibration.md`](boresight-calibration.md).
 
-The current acquisition firmware uses LSM6DSOX gyro `CTRL2_G = 0x44` (104 Hz, +/-500 deg/s). The previous +/-250 deg/s setting was exceeded during a real mixed-axis calibration motion. Host tooling now checks gyro full-scale utilisation directly.
+The current acquisition firmware uses LSM6DSOX gyro `CTRL2_G = 0x44` (104 Hz, +/-500 deg/s). The previous +/-250 deg/s setting was exceeded during a real mixed-axis calibration motion. Host tooling checks gyro full-scale utilisation directly.
 
 Current boresight-specific empirical gates are:
 
@@ -53,6 +53,16 @@ ToF maximum half-capture drift <= 10 mm
 
 These are workflow quality gates derived from reference-rig testing, not universal sensor specifications.
 
+The September 2026 reference run achieved a held-out P5 normal error of 0.644 deg. Adding P5 changed the fitted extrinsic by 0.639 deg in 3-D rotation, and the final six-pose fit reported approximately `Rx +5.880, Ry +3.930, Rz +0.160 deg` with 0.797 deg normal RMS. These values are per-assembly reference evidence, not constants to copy to another build.
+
+A validated sequence can be converted to the versioned `rangeweave.tof-body-rotation` artifact with:
+
+```powershell
+py host/python/generate_boresight_artifact.py <session-prefix>
+```
+
+The artifact contains the exact rotation matrix, fit and held-out diagnostics, geometry-profile role, IMU/gyro provenance and capture hashes.
+
 ### Runtime estimator state
 
 Must not be stored as permanent calibration merely because it changes slowly:
@@ -67,6 +77,6 @@ Must not be stored as permanent calibration merely because it changes slowly:
 
 The [build guide](build-guide.md) remains the hardware reproduction/self-test starting point. For current alignment work, use the dedicated [boresight calibration guide](boresight-calibration.md).
 
-Raw calibration observations should be retained so algorithms can be rerun later. A promoted calibration artifact should carry provenance identifying the capture set, firmware/configuration, geometry profile and fit diagnostics used to produce it.
+Raw calibration observations should be retained so algorithms can be rerun later. A promoted calibration artifact carries provenance identifying the capture set, firmware/configuration, geometry profile and fit diagnostics used to produce it.
 
 Physical reference-rig evidence is summarized in [`validation/boresight-reference-rig-2026-09.md`](validation/boresight-reference-rig-2026-09.md).
