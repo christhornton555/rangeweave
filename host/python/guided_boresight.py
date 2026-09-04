@@ -18,7 +18,7 @@ import time
 
 DEFAULT_WARMUP_SECONDS = 3.0
 DEFAULT_STATIONARY_CAPTURE_SECONDS = 8.0
-DEFAULT_MOTION_CAPTURE_SECONDS = 21.0
+DEFAULT_MOTION_CAPTURE_SECONDS = 27.0
 DEFAULT_RECORDED_INITIAL_HOLD_SECONDS = 5.0
 DEFAULT_MOVE_SECONDS = 10.0
 
@@ -208,7 +208,8 @@ def _run_motion_capture(
     print("Move smoothly and continuously; exact angles and exact timing are not measurements.")
 
     _wait_with_process(process, move_seconds, "movement")
-    _banner("STOP MOVING — HOLD THIS NEW POSE")
+    _banner("STOP MOVING — HANDS OFF — HOLD THIS NEW POSE")
+    print("Release the controls completely and do not touch the rig while it settles.")
     print("Keep the sensing head completely stationary until capture.py finishes.")
 
     returncode = process.wait()
