@@ -22,9 +22,9 @@ body Z = -imu Y
 
 A simple positive body-X pitch capture recovered approximately +21 deg around X with sub-degree independent gravity closure.
 
-## First successful fixed-plane sequence
+## Early four-pose evidence
 
-The restarted fixed-plane sequence used four clean stationary ToF observations and three clean relative IMU motions. The provisional four-pose solve reported approximately:
+The first convincing fixed-plane sequence used four clean stationary ToF observations and three clean relative IMU motions. Its provisional solve reported approximately:
 
 ```text
 R_body_from_tof:
@@ -35,11 +35,9 @@ normal RMS: 0.535 deg
 normal max: 0.666 deg
 ```
 
-This was the first convincing physical demonstration that the fixed-plane solver, relative-body composition and ToF plane-normal path can produce a small plausible assembly boresight on the reference rig.
+This established that the fixed-plane solver, relative-body composition and ToF plane-normal path could produce a plausible assembly boresight. It was deliberately not promoted because the intended additional held-out/roll-rich pose had not been validated.
 
-The result remains **provisional** because the intended additional held-out/roll-rich validation pose was not successfully completed under the then-current gyro configuration.
-
-## Old +/-250 deg/s failure
+## Old +/-250 deg/s failure and range change
 
 The attempted roll-rich mixed motion under `CTRL2_G = 0x40` (+/-250 deg/s) produced:
 
@@ -49,16 +47,16 @@ configured full scale:      +/-250 deg/s
 gyro/gravity closure:       12.642 deg
 ```
 
-The capture had clean stream/health counters and clean stationary endpoints, but exceeded the configured gyro range. It is therefore retained as diagnostic evidence and must not be admitted to a boresight solve.
+The capture had clean stream/health counters and clean stationary endpoints, but exceeded the configured gyro range. It was retained as diagnostic evidence and excluded from calibration solves.
 
-This observation motivated two changes:
+This motivated two changes:
 
 1. acquisition gyro range changed to `CTRL2_G = 0x44` (+/-500 deg/s, same nominal 104 Hz ODR);
-2. host motion-quality checks now report configured full scale and reject captures at >=90% utilisation, with a warning at >=80%.
+2. host motion-quality checks report configured full scale and reject captures at >=90% utilisation, with a warning at >=80%.
 
 The rate excursion is a strong explanation for the failed closure but is not claimed as mathematically proven to be the sole possible cause.
 
-## +/-500 deg/s validation
+## +/-500 deg/s validation before the final sequence
 
 A stationary configuration check after flashing `CTRL2_G = 0x44` reported:
 
@@ -91,40 +89,143 @@ gravity change: 14.387 deg
 gyro/gravity closure: 0.303 deg
 ```
 
-These results support using +/-500 deg/s for calibration capture: it provides substantial headroom for normal deliberate hand/fixture movements while retaining good relative-rotation closure on the reference rig.
+These results support using +/-500 deg/s for calibration capture: it provides substantial headroom for normal deliberate fixture movements while retaining good relative-rotation closure on the reference rig.
 
-## ToF stationary-pose evidence
+## Mechanical settling finding
 
-Clean stationary fixed-plane captures on the reference rig typically produced roughly 1-2 mm plane RMS residual and only a few millimetres of maximum half-capture drift.
+An otherwise clean guided M4 attempt initially failed the 2 deg gravity-closure gate at 2.744 deg. Its final nominally stationary window showed substantially more gyro and accelerometer variation than its initial window, consistent with camera-head oscillation/settling contaminating the endpoint bias estimate.
 
-Two distinct failure modes were physically observed:
-
-- a pose could retain a good instantaneous plane fit while the target/sensor moved during the capture, producing large temporal half-capture drift;
-- an off-target pose could produce very large plane RMS/max residuals when some ToF zones no longer observed the intended plane.
-
-The boresight workflow therefore currently uses deliberately generous empirical gates:
+The guided motion schedule was therefore changed from a 6 s to a **12 s hands-off final hold**, while retaining the 10 s movement allowance. The final successful sequence used:
 
 ```text
-plane RMS <= 10 mm
-plane max residual <= 30 mm
-max half-capture drift <= 10 mm
+3 s discarded warm-up
+5 s recorded initial hold
+10 s movement / adjustment
+12 s hands-off final settling hold
 ```
 
-These are workflow gates derived from the reference-rig evidence, not universal VL53L5CX sensor specifications.
+The replacement M4 then closed to 0.745 deg with stationary gyro robust spreads of 0.026 / 0.021 deg/s.
+
+## Final P0-P5 fixed-wall sequence
+
+The successful guided session prefix was:
+
+```text
+boresight-guided-20260904_010944
+```
+
+It used a rigid breadboard sensing head on a three-axis camera mount, observing one unchanged flat wall. P0-P4 were captured in the main guided session; the rig was left untouched at P4 and M5/P5 were captured immediately afterwards as validation continuation:
+
+```text
+boresight-guided-20260904_010944-validation-20260904_014426
+```
+
+The recommended builder workflow has since been simplified to capture P0-P5 in one guided session.
+
+### Motion quality
+
+```text
+M1: angle 17.822 deg; gravity closure 0.647 deg; gyro  8.6% used
+M2: angle 28.080 deg; gravity closure 0.390 deg; gyro 10.4% used
+M3: angle 45.426 deg; gravity closure 0.322 deg; gyro 11.5% used
+M4: angle 23.322 deg; gravity closure 0.745 deg; gyro  9.0% used
+M5: angle 24.295 deg; gravity closure 0.510 deg; gyro 20.8% used
+```
+
+All motions passed the 5 deg minimum-motion, 2 deg maximum gravity-closure and gyro-range gates with substantial +/-500 deg/s headroom.
+
+### Stationary ToF quality
+
+```text
+P0: RMS 1.315 mm; max 4.308 mm; half-drift 1.00 mm
+P1: RMS 1.836 mm; max 4.801 mm; half-drift 2.00 mm
+P2: RMS 2.818 mm; max 9.624 mm; half-drift 2.00 mm
+P3: RMS 2.062 mm; max 5.630 mm; half-drift 1.00 mm
+P4: RMS 1.836 mm; max 4.942 mm; half-drift 2.00 mm
+P5: RMS 2.366 mm; max 5.920 mm; half-drift 1.50 mm
+```
+
+All six poses used all 64 zones and passed the boresight plane/temporal-stability gates comfortably.
+
+## Why six poses are now recommended
+
+A P0-P3 training fit, with P4 held out, produced:
+
+```text
+R_body_from_tof: Rx +7.790  Ry +8.860  Rz -0.410 deg
+normal RMS:      0.911 deg
+P4 held-out error: 1.769 deg
+```
+
+After revealing P4, the five-pose fit changed by 5.607 deg in 3-D rotation, with `Ry` moving by about 5.08 deg. The physical P4 data itself was clean; the observability diagnostics showed that P4 contributed important new geometric constraint, especially to the previously weak direction.
+
+The P0-P4 fit was therefore treated as the candidate calibration and a sixth geometrically different pose was captured for independent validation.
+
+## Held-out P5 validation
+
+With P5 ToF excluded, the P0-P4 fit was:
+
+```text
+R_body_from_tof:  Rx +5.430  Ry +3.780  Rz -0.300 deg
+normal RMS:       0.847 deg
+normal max:       1.604 deg
+observability:    X 6.040e-06  Y 4.721e-06  Z 2.330e-05
+```
+
+M5's IMU-derived body orientation was then used to predict the ToF-frame wall normal at P5. The held-out result was:
+
+```text
+predicted n_tof: X +0.36748  Y +0.22585  Z +0.90219
+observed n_tof:  X +0.36990  Y +0.21500  Z +0.90385
+angular error:   0.644 deg
+```
+
+The prediction error was lower than the P0-P4 training RMS, providing strong evidence that the calibration generalized to a new physical pose.
+
+After revealing P5, the six-pose refit became:
+
+```text
+R_body_from_tof:  Rx +5.880  Ry +3.930  Rz +0.160 deg
+normal RMS:       0.797 deg
+normal max:       1.648 deg
+observability:    X 5.169e-06  Y 4.278e-06  Z 2.742e-05
+```
+
+The parameter shift after adding P5 was small:
+
+```text
+dRx +0.450 deg
+dRy +0.150 deg
+dRz +0.460 deg
+3-D rotation change: 0.639 deg
+```
+
+This is the validation result that supports promotion of the six-pose reference-rig boresight artifact.
 
 ## Capture-data provenance
 
-Raw developer captures are intentionally not committed to the public repository by default. When preserving or publishing a calibration result, retain the original capture directories (`metadata.json`, `packets.bin`, `notes.txt`) and their recorded SHA-256 hashes so future code can replay the observations.
+Raw developer captures are intentionally not committed to the public repository by default. The successful captures and their recorded `packets.bin` SHA-256 hashes are:
 
-A final promoted per-device boresight artifact should record enough provenance to identify the capture set, firmware/configuration, geometry profile and fit diagnostics used to produce it.
+```text
+P0  8ec010679e1b30461238785dabd39c89b254d72b3094ff573ab395c6d496a753
+M1  ff8fec5813640967a8844b0be973644eb5510e486f81e60cfbee7700739f5e25
+P1  fed9d8e9852a8d3b51cd0505f2d5064483ef5e31c1419fdfe0951cef4b233d29
+M2  87c135ffaf44f5059cb7ddbe17f7464bfad5cbf5f3e3c80b029f2c5537288bad
+P2  ef15070e6bc3534cae8449d0484e264f953ee80ae476619c00438aa2fe36250c
+M3  9ee2a3061064d6b1ad537648726afa15516e1f37ed91d4af8004b308f2675c28
+P3  308f9ebe7324fa643d6e3c2edd30066f6e3b9dd11c4d6047fc723d29b6cce94b
+M4  659c9f43bb83963835041a814bf8bd3b446fa4c4e186b61ebbe2e061094ba37c
+P4  98d29cc819b1e39bd5d9e4c6f4396384363b2b384f76714f4f924bae9a4da795
+M5  d684c1d5c605cf0e2b596d3f5424a2395ddc37d65759fa71b5f4d4d7f33fdae4
+P5  c521ef7405936b8948f439cd6896f8607b37387ae77ae1a565d63e55017f39e9
+```
 
-## Remaining validation
+The promoted artifact generator embeds capture-directory names, these packet hashes, `STREAM_INFO`, IMU mapping role, gyro-range provenance, quality gates and the ToF geometry profile role.
 
-Before the reference-rig boresight is promoted from provisional to a final per-device artifact:
+The final calibration used the built-in ST-derived `nominal-fallback` ToF geometry profile. That provenance is recorded explicitly; intrinsic per-zone calibration was not silently assumed.
 
-- repeat the full fixed-wall sequence with the +/-500 deg/s acquisition configuration;
-- reserve a geometrically different pose as a held-out validation observation;
-- compare the four-pose fit against the held-out pose, then refit all poses and verify parameter stability;
-- record the resulting artifact and provenance explicitly.
+## Current claim boundary
 
-Cross-unit reproduction remains a separate requirement.
+The **reference rig's rotational ToF/body boresight workflow is now physically validated**, including a genuinely held-out ToF pose and a stable six-pose refit.
+
+The calibrated rotation remains per-assembly. Cross-unit reproduction is still required before making any claim about typical manufacturing spread or universal values. Magnetometer/body mapping, sensor-origin translation, world attitude, odometry and SLAM remain separate later work.
