@@ -1,6 +1,6 @@
 # Rangeweave - RGB-Free Active Depth + IMU Spatial Mapping
 
-> **Project status:** reference sensor acquisition, protocol/capture/replay, raw/temporal depth viewing, nominal 64-zone projection and the reference-rig ToF/body rotational boresight workflow are physically validated on the current Pico 2 W stack. The exact reference boresight artifact is promoted. **Phase 3 orientation estimation is next; translation/odometry and 3D mapping remain work in progress.**
+> **Project status:** reference sensor acquisition, protocol/capture/replay, raw/temporal depth viewing, nominal 64-zone projection and the reference-rig ToF/body rotational boresight workflow are physically validated on the current Pico 2 W stack. The exact reference boresight artifact is promoted. **Phase 3 orientation estimation is now in implementation: attitude conventions are frozen and a first gyro+gravity replay core exists, but real-capture/rotation-in-place validation is still pending.** Translation/odometry and 3D mapping remain work in progress.
 
 Rangeweave explores a small, inexpensive **RGB-free** sensing module combining sparse time-of-flight depth with inertial sensing. The long-term goal is to turn synchronized depth + motion observations into trajectories, sparse point clouds and eventually 3D maps while keeping the sensing head compact and portable beyond the current Raspberry Pi Pico prototype.
 
@@ -45,32 +45,40 @@ The September 2026 reference run predicted a held-out P5 ToF wall normal to **0.
 - optional per-device VL53L5CX known-plane intrinsic calibration tooling;
 - versioned `rangeweave.tof-body-rotation` extrinsic representation and fixed-plane solver;
 - provenance-rich per-device boresight artifact generation;
-- developer replay/inspection tooling for individual calibration captures.
+- frozen Phase 3 `local_reference`/quaternion/body-rate attitude conventions with golden tests;
+- deterministic timestamp-driven gyro+gravity orientation core;
+- recorded-capture orientation replay inspector with gravity-confidence diagnostics and optional comparison against the validated hold-move-hold relative estimator.
 
 **Still open**
 
-- persistent gyro+gravity orientation estimation and frozen world/local/quaternion conventions;
+- real-capture and continuous rotation-in-place validation of the persistent gyro+gravity orientation core;
 - magnetometer/body calibration and confidence-gated magnetic heading;
 - independent cross-unit reproduction of the boresight workflow;
 - rigid translation between sensor origins where required;
 - robust freehand 6DoF tracking, odometry, loop closure and metrically validated 3D reconstruction;
 - Android/BLE/Wi-Fi/ESP32 production parity.
 
-## Next milestone: orientation
+## Current milestone: orientation
 
 Phase 3 adds persistent attitude estimation before any attempt at freehand translation/SLAM.
 
-The first orientation baseline will:
+The current baseline now:
 
-1. freeze quaternion/rotation and local-reference-frame conventions explicitly;
-2. integrate gyro using recorded sensor timestamps;
-3. use accelerometer gravity as a confidence-gated pitch/roll reference while leaving yaw unobservable in six-axis mode;
-4. replay existing clean calibration motions as regression cases;
-5. make one continuous multi-axis rotation-in-place capture against static geometry;
-6. apply the promoted `R_body_from_tof` and verify that the same wall/scene orientation stays stable while the sensing head rotates;
-7. add magnetic heading only after `mag_sensor -> device_body`, hard/soft-iron calibration and disturbance gating are physically validated.
+1. uses explicit project-owned scalar-first Hamilton quaternion and `local_reference_from_body` conventions;
+2. integrates mapped body-frame gyro using recorded sensor timestamps;
+3. initializes from an explicit stationary interval and keeps the initial gyro-bias estimate fixed rather than silently treating later slow motion as bias;
+4. uses accelerometer specific force as a confidence-gated gravity/pitch/roll reference while leaving yaw unobservable in six-axis mode;
+5. can replay canonical captures and compare hold-move-hold start/end rotation with the validated relative estimator.
 
-See [the Phase 3 orientation plan](docs/orientation-estimation.md) and [the overall project roadmap](docs/project-plan.md).
+The next evidence steps are:
+
+1. replay the existing clean calibration motions as regression cases;
+2. make one continuous multi-axis rotation-in-place capture against static geometry;
+3. apply the promoted `R_body_from_tof` and verify that the same wall/scene orientation stays stable while the sensing head rotates;
+4. add orientation-aware ToF viewing once the rotation-only path passes;
+5. add magnetic heading only after `mag_sensor -> device_body`, hard/soft-iron calibration and disturbance gating are physically validated.
+
+See [the Phase 3 orientation plan](docs/orientation-estimation.md), [the frozen attitude conventions](docs/attitude-conventions.md), and [the overall project roadmap](docs/project-plan.md).
 
 ## Quick start: reproduce the sensor stack
 
@@ -160,7 +168,7 @@ Start with the [documentation index](docs/README.md) and [project plan](docs/pro
 
 ## Not yet claimed
 
-Rangeweave does not yet claim persistent world attitude, reliable freehand SLAM, dense reconstruction, loop closure, cross-unit calibration equivalence or privacy guarantees merely because RGB is absent.
+Rangeweave does not yet claim a physically validated persistent local/world attitude path, global heading, reliable freehand SLAM, dense reconstruction, loop closure, cross-unit calibration equivalence or privacy guarantees merely because RGB is absent.
 
 ## Contributing and license
 
