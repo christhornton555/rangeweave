@@ -20,6 +20,8 @@ calibration/tof-body-rotation-<session-prefix>.json
 
 The JSON schema is `rangeweave.tof-body-rotation` version 1. A calibrated artifact records the exact `tof_optical -> device_body` rotation matrix plus calibration/held-out-validation diagnostics, capture SHA-256 hashes, `STREAM_INFO`, IMU mapping role, gyro-range provenance, quality gates and the ToF geometry profile used by the solve.
 
+The validated September 2026 reference-rig artifact is retained as [`tof-body-rotation-boresight-guided-20260904_010944.json`](tof-body-rotation-boresight-guided-20260904_010944.json). It belongs to that one physical sensing head and is reference evidence, not a universal rotation to copy to another independently assembled unit.
+
 Do not copy one physical unit's calibrated rotation into another independently assembled unit. The identity `nominal-fallback` remains the uncalibrated default.
 
 See [`../docs/boresight-calibration.md`](../docs/boresight-calibration.md) and [`../docs/validation/boresight-reference-rig-2026-09.md`](../docs/validation/boresight-reference-rig-2026-09.md).
