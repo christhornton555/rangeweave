@@ -2,7 +2,7 @@
 
 **Status:** Phase 3 is the active estimation layer. The acquisition/timing path, `imu_sensor -> device_body` mapping, ToF geometry convention and reference-rig `tof_optical -> device_body` rotational boresight are already validated and provide the inputs this layer needs.
 
-The project-owned attitude conventions are now frozen in [`attitude-conventions.md`](attitude-conventions.md). A first deterministic Python gyro+gravity orientation core and replay inspector are implemented as an **unvalidated Phase 3 candidate**; real-capture regression and rotation-in-place validation are still required before persistent attitude is a supported reference-path claim.
+The project-owned attitude conventions are now frozen in [`attitude-conventions.md`](attitude-conventions.md). A first deterministic Python gyro+gravity orientation core and replay inspector are implemented as a **Phase 3 candidate under physical validation**.
 
 ## Goal
 
@@ -58,22 +58,43 @@ Current properties:
 
 The proportional gravity gain and confidence behaviour are initial engineering defaults, not physically promoted tuning constants. They must be evaluated against recorded and new physical evidence before becoming acceptance criteria.
 
-### 3C. Rotation-in-place validation — NEXT
+### 3C. Rotation-in-place validation — ACTIVE
 
-Validate on recorded data before depending on live behaviour.
+The first regression level is complete: all five retained clean hold-move-hold boresight motions have been replayed through the persistent estimator and compared with the already validated short-baseline relative-rotation estimator.
 
-Use two levels of evidence:
+| motion | trusted relative angle | gravity closure | persistent-estimator delta |
+|---|---:|---:|---:|
+| M1 | 17.822 deg | 0.647 deg | 0.656 deg |
+| M2 | 28.080 deg | 0.390 deg | 0.777 deg |
+| M3 | 45.426 deg | 0.322 deg | 0.339 deg |
+| M4 | 23.322 deg | 0.745 deg | 0.736 deg |
+| M5 | 24.295 deg | 0.510 deg | 0.859 deg |
 
-1. **Existing calibration captures:** replay known clean hold/move/hold motions as regression cases for sign, composition and gravity consistency. The replay inspector can compare the persistent estimator's start-to-end rotation against the already validated short-baseline relative-rotation estimator.
-2. **New continuous rotation capture:** keep the sensing head at approximately one location, rotate it through varied pitch/yaw/roll poses in front of a fixed wall or other static geometry, and evaluate the complete attitude path.
+All five captures had clean decoder/sequence/health status and acceptable +/-500 deg/s range utilisation. Across varied real motions the persistent estimator remained in sub-degree start/end agreement with the trusted relative estimator. M2 had a noisier startup window than the others but still produced sub-degree agreement.
 
-For the wall test, plane normals are especially useful because they are insensitive to small translations caused by the photographic head's pivot not coinciding with the ToF optical centre. After applying:
+This is strong regression evidence for axis/sign/composition correctness and basic real-data behaviour, but it is **not** yet the Phase 3 exit test. No final orientation acceptance threshold is frozen from these hold-move-hold regressions alone.
+
+The next physical validation is one continuous multi-axis rotation-in-place capture against a fixed wall/static plane. For every usable ToF frame:
 
 ```text
 ToF normal -> R_body_from_tof -> estimated local/reference orientation
 ```
 
-the same physical wall normal should remain approximately constant throughout the rotation.
+the same physical wall normal should remain approximately constant throughout the motion.
+
+Plane normals are useful here because they are insensitive to the small translations caused by a photographic-head pivot that does not coincide with the ToF optical centre.
+
+The continuous validation should report at least:
+
+- stream/health integrity and gyro-range utilisation;
+- orientation initialization quality and gravity-correction diagnostics;
+- number/share of usable ToF frames;
+- transformed local wall-normal mean/reference;
+- angular residual distribution over time (median, RMS, high percentile and maximum);
+- start/end stationary wall-normal consistency;
+- evidence of any residual correlated with fast rotation or acceleration-gated periods.
+
+Protocol v0.1 records `mcu_ready_us` when software observes VL53L5CX data-ready. The physical result was available no later than that timestamp, but the exact internal ranging instant is not exposed. Continuous-motion validation must therefore keep ToF timing semantics visible rather than silently treating the read-complete time as measurement time; if residuals correlate with angular rate, a repeatable effective ToF timing offset may need to become an explicit calibration/timing parameter.
 
 Measure, do not pre-assume, the acceptable angular residual/drift bounds from this evidence.
 
@@ -119,10 +140,11 @@ Magnetometer-aided heading may be a later Phase 3 extension; it is not required 
 
 ## Immediate implementation order
 
-1. ~~write/freeze the attitude/quaternion convention and golden composition tests~~ — done on the Phase 3 implementation branch;
-2. ~~implement the timestamp-driven six-axis orientation core and replay inspector~~ — candidate implemented; physical/replay validation pending;
-3. **replay existing boresight motion captures as regression evidence**;
-4. make one new continuous multi-axis rotation-in-place capture against a static wall;
-5. evaluate transformed wall-normal stability and freeze empirical acceptance bounds;
-6. add orientation-aware ToF geometry/viewing;
-7. then begin magnetometer mapping/calibration and later full 6DoF pose work.
+1. ~~write/freeze the attitude/quaternion convention and golden composition tests~~ — done;
+2. ~~implement the timestamp-driven six-axis orientation core and replay inspector~~ — candidate implemented;
+3. ~~replay existing boresight motion captures as regression evidence~~ — M1-M5 complete, all sub-degree start/end delta;
+4. **implement continuous wall-normal validation tooling**;
+5. make one new continuous multi-axis rotation-in-place capture against a static wall;
+6. evaluate transformed wall-normal stability and freeze empirical acceptance bounds;
+7. add orientation-aware ToF geometry/viewing;
+8. then begin magnetometer mapping/calibration and later full 6DoF pose work.
