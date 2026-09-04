@@ -1,6 +1,8 @@
 # Orientation estimation plan
 
-**Status:** Phase 3 is the next major estimation layer. The acquisition/timing path, `imu_sensor -> device_body` mapping, ToF geometry convention and reference-rig `tof_optical -> device_body` rotational boresight are already validated and provide the inputs this layer needs.
+**Status:** Phase 3 is the active estimation layer. The acquisition/timing path, `imu_sensor -> device_body` mapping, ToF geometry convention and reference-rig `tof_optical -> device_body` rotational boresight are already validated and provide the inputs this layer needs.
+
+The project-owned attitude conventions are now frozen in [`attitude-conventions.md`](attitude-conventions.md). A first deterministic Python gyro+gravity orientation core and replay inspector are implemented as an **unvalidated Phase 3 candidate**; real-capture regression and rotation-in-place validation are still required before persistent attitude is a supported reference-path claim.
 
 ## Goal
 
@@ -24,44 +26,45 @@ The first success criterion is deliberately rotation-only: when the sensing head
 
 ## Scope of Phase 3
 
-### 3A. Freeze attitude conventions
+### 3A. Freeze attitude conventions — IMPLEMENTED
 
-Before a persistent attitude state is implemented, document and test:
+The reference path now defines and golden-tests:
 
-- quaternion component order;
-- transform direction represented by the quaternion/matrix;
-- active versus passive rotation interpretation;
-- quaternion multiplication/composition order;
-- angular-velocity sign/frame convention;
-- gravity direction and initialization convention;
-- definition of the initial local/reference frame;
-- explicit statement that yaw is unobservable from accelerometer + gyro alone.
+- quaternion component order: scalar-first `(w, x, y, z)`;
+- Hamilton multiplication;
+- active `R_reference_from_body` transform direction;
+- composition order consistent with existing Rangeweave matrices;
+- body-frame angular velocity and right-multiplied gyro increments;
+- accelerometer specific-force/up direction versus physical gravity down;
+- gravity-referenced `local_reference` construction;
+- local yaw-zero semantics and the explicit statement that yaw is unobservable from accelerometer + gyro alone.
 
-The project should choose these conventions deliberately rather than inheriting them from a Python, Android or graphics API.
+These conventions are project-owned and must be converted explicitly at Python/Android/graphics/robotics boundaries. See [`attitude-conventions.md`](attitude-conventions.md).
 
-### 3B. Six-axis orientation baseline
+### 3B. Six-axis orientation baseline — IMPLEMENTED CANDIDATE
 
-Implement a timestamp-driven gyro + accelerometer estimator in Python first.
+`host/python/rangeweave_orientation.py` now provides a timestamp-driven gyro + accelerometer baseline and `host/python/inspect_orientation.py` replays it on canonical captures.
 
-Required properties:
+Current properties:
 
-- integrate gyro using sensor timestamps;
-- initialize pitch/roll from gravity while leaving yaw arbitrary;
-- use accelerometer only as a gravity observation when its magnitude/behaviour is credible;
-- maintain or estimate gyro bias without silently treating real motion as bias;
-- expose diagnostics/confidence rather than always returning a trusted attitude;
-- remain replayable and deterministic from a recorded capture;
-- keep estimator state separate from permanent calibration artifacts.
+- integrates mapped body-frame gyro using LSM hardware-timestamp correlation;
+- initializes gravity-referenced pitch/roll and a local, non-global yaw zero from an explicit stationary initial interval;
+- estimates a **fixed initial gyro bias only from that explicit stationary interval**, avoiding silent online reinterpretation of slow real motion as bias;
+- uses accelerometer only as a gravity/specific-force observation when magnitude is credible;
+- exposes gravity-correction weight and innovation diagnostics;
+- remains deterministic and standard-library-only under replay;
+- keeps estimator state separate from permanent calibration artifacts;
+- does not use the magnetometer.
 
-A conventional complementary/Mahony-style or equivalent physics-based baseline is appropriate before considering learned corrections.
+The proportional gravity gain and confidence behaviour are initial engineering defaults, not physically promoted tuning constants. They must be evaluated against recorded and new physical evidence before becoming acceptance criteria.
 
-### 3C. Rotation-in-place validation
+### 3C. Rotation-in-place validation — NEXT
 
 Validate on recorded data before depending on live behaviour.
 
 Use two levels of evidence:
 
-1. **Existing calibration captures:** replay known clean hold/move/hold motions as regression cases for sign, composition and gravity consistency.
+1. **Existing calibration captures:** replay known clean hold/move/hold motions as regression cases for sign, composition and gravity consistency. The replay inspector can compare the persistent estimator's start-to-end rotation against the already validated short-baseline relative-rotation estimator.
 2. **New continuous rotation capture:** keep the sensing head at approximately one location, rotate it through varied pitch/yaw/roll poses in front of a fixed wall or other static geometry, and evaluate the complete attitude path.
 
 For the wall test, plane normals are especially useful because they are insensitive to small translations caused by the photographic head's pivot not coinciding with the ToF optical centre. After applying:
@@ -116,9 +119,9 @@ Magnetometer-aided heading may be a later Phase 3 extension; it is not required 
 
 ## Immediate implementation order
 
-1. write/freeze the attitude/quaternion convention and golden composition tests;
-2. implement the timestamp-driven six-axis orientation core and replay inspector;
-3. replay existing boresight motion captures as regression evidence;
+1. ~~write/freeze the attitude/quaternion convention and golden composition tests~~ — done on the Phase 3 implementation branch;
+2. ~~implement the timestamp-driven six-axis orientation core and replay inspector~~ — candidate implemented; physical/replay validation pending;
+3. **replay existing boresight motion captures as regression evidence**;
 4. make one new continuous multi-axis rotation-in-place capture against a static wall;
 5. evaluate transformed wall-normal stability and freeze empirical acceptance bounds;
 6. add orientation-aware ToF geometry/viewing;
