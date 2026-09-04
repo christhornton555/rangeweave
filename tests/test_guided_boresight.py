@@ -12,12 +12,14 @@ import guided_boresight as guided
 
 
 class GuidedBoresightTests(unittest.TestCase):
-    def test_default_plan_has_four_distinct_motion_steps(self):
-        self.assertEqual(len(guided.STEP_INSTRUCTIONS), 4)
-        self.assertEqual(len(set(guided.STEP_INSTRUCTIONS)), 4)
+    def test_default_plan_has_five_distinct_motion_steps(self):
+        self.assertEqual(guided.DEFAULT_STEP_COUNT, 5)
+        self.assertEqual(len(guided.STEP_INSTRUCTIONS), 5)
+        self.assertEqual(len(set(guided.STEP_INSTRUCTIONS)), 5)
         self.assertIn("Rx", guided.STEP_INSTRUCTIONS[0])
         self.assertIn("Ry", guided.STEP_INSTRUCTIONS[1])
         self.assertIn("Rz", guided.STEP_INSTRUCTIONS[3])
+        self.assertIn("P4", guided.STEP_INSTRUCTIONS[4])
 
     def test_default_motion_schedule_leaves_long_final_hold(self):
         guided._validate_timing(
