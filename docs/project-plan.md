@@ -28,7 +28,7 @@ Develop a small, inexpensive, RGB-free sensing module that combines sparse activ
 - A provenance-rich `rangeweave.tof-body-rotation` artifact generator is implemented.
 - The exact validated reference-rig boresight artifact is promoted under `calibration/` and Phase 2 PR #10 is merged.
 
-**Current focus: Phase 3 orientation estimation.** The next objective is a replayable, convention-frozen gyro+gravity attitude layer that can rotate calibrated ToF observations into a stable local reference frame before translation/odometry is introduced.
+**Current focus: Phase 3 orientation estimation.** Project-owned `local_reference`/quaternion/body-rate conventions are now frozen and golden-tested. A first deterministic gyro+gravity Python core and replay inspector are implemented as an **unvalidated candidate**. The immediate evidence step is replaying the existing clean boresight motion captures before gathering a new continuous rotation-in-place wall sequence.
 
 ## Non-negotiable design principles
 
@@ -125,7 +125,7 @@ The September 2026 reference run used the built-in ToF geometry profile with rol
 | 2. Raw viewer + nominal sparse geometry | **DONE on reference path** | Real wall/object captures project with the documented orientation/depth convention. |
 | 2A. Optional ToF intrinsic calibration | **IMPLEMENTED / NOT YET PHYSICALLY PROMOTED** | Repeatable per-device geometry profile with held-out validation/provenance. |
 | 2B. ToF/body rotational boresight | **DONE / REFERENCE ARTIFACT PROMOTED** | Guided P0-P5 workflow, held-out P5 validation, artifact generation/provenance and merged documentation. |
-| 3. Orientation | **NEXT / ACTIVE PLAN** | Rotation-in-place keeps static geometry stable within quantified bounds using a replayable attitude estimator with frozen conventions and visible confidence. |
+| 3. Orientation | **IN IMPLEMENTATION / REPLAY VALIDATION NEXT** | Rotation-in-place keeps static geometry stable within quantified bounds using a replayable attitude estimator with frozen conventions and visible confidence. |
 | 4. Full calibration suite | **PARTIAL** | Versioned timing/intrinsic/extrinsic artifacts are reproducible and portable, including magnetic and any required rigid translation calibration. |
 | 5. Known-pose scanner | **PLANNED** | Controlled motion produces consistent geometry. |
 | 6. Freehand local odometry | **RESEARCH / PLANNED** | Quantified drift on repeatable trajectories with uncertainty. |
@@ -136,14 +136,14 @@ The September 2026 reference run used the built-in ToF geometry profile with rol
 
 ## Immediate work package: Phase 3 orientation
 
-Detailed plan: [`orientation-estimation.md`](orientation-estimation.md).
+Detailed plan: [`orientation-estimation.md`](orientation-estimation.md). Normative attitude semantics: [`attitude-conventions.md`](attitude-conventions.md).
 
 Priority order:
 
-1. **Freeze attitude conventions** — quaternion order, transform direction, active/passive interpretation, composition order, angular-rate frame/sign, gravity initialization and local/reference-frame definition. Explicitly document that yaw is unobservable from accelerometer + gyro alone.
-2. **Implement a six-axis Python baseline** — timestamp-driven gyro integration plus confidence-gated gravity correction, with bias handling, diagnostics and deterministic replay.
-3. **Replay existing clean boresight motions** — use them as sign/composition/gravity regression cases before gathering more hardware data.
-4. **Capture one new continuous multi-axis rotation-in-place sequence** against a fixed wall/static scene.
+1. **DONE — freeze attitude conventions.** Scalar-first Hamilton `(w,x,y,z)`, active `R_reference_from_body`, body-frame angular-rate propagation, gravity/specific-force semantics and local yaw-zero are documented and golden-tested.
+2. **IMPLEMENTED CANDIDATE — six-axis Python baseline.** Timestamp-driven gyro integration, fixed explicit-startup bias estimate, confidence-gated gravity correction, diagnostics and deterministic replay are implemented but not yet physically promoted.
+3. **NEXT — replay existing clean boresight motions.** Compare persistent start-to-end orientation against the already validated hold-move-hold relative estimator for sign/composition/gravity regression evidence.
+4. **Then capture one new continuous multi-axis rotation-in-place sequence** against a fixed wall/static scene.
 5. **Validate orientation using static geometry** — apply the promoted `R_body_from_tof` plus estimated attitude and measure how constant the same wall normal remains. Use observed evidence to set acceptance bounds rather than inventing them in advance.
 6. **Add orientation-aware ToF viewing/projection** once the attitude path passes the rotation-only test.
 7. **Then tackle magnetic heading** — physically map `mag_sensor -> device_body`, calibrate hard/soft iron, characterize disturbances and add confidence-gated heading correction.
@@ -174,7 +174,7 @@ The same physical wall should then have approximately the same `n_local` through
 - hardware self-test for every physical build;
 - fixed-wall and known-plane calibration tests;
 - held-out calibration observations rather than fitting every captured pose without validation;
-- orientation golden-composition tests once quaternion conventions are frozen;
+- golden attitude/quaternion composition/body-rate tests;
 - repeatable rotation-in-place tests with static-geometry residuals;
 - later repeatable translation/return-to-start trajectories;
 - explicit health, range, temporal-stability, confidence and observability gates.
@@ -196,7 +196,7 @@ The same physical wall should then have approximately the same `n_local` through
 - optional per-device ToF intrinsic calibration;
 - boresight reproducibility across independently assembled units;
 - universal numeric acceptance bounds for held-out/final-fit stability across arbitrary fixtures and sensor assemblies;
-- persistent world/local attitude estimation beyond short-baseline relative rotations.
+- the new persistent six-axis `local_reference` attitude implementation until replay and rotation-in-place validation are complete.
 
 ### Not yet supported
 
@@ -218,7 +218,9 @@ The same physical wall should then have approximately the same `n_local` through
 - calibration keeps ToF intrinsic rays separate from rigid ToF/body boresight;
 - the builder boresight sequence is P0-P5 with P5 held out before the final refit;
 - the reference-rig exact boresight matrix is stored as a per-device artifact rather than a universal constant;
-- the first persistent orientation layer will be gyro+gravity and must remain useful without magnetometer heading;
+- Phase 3 attitude is scalar-first Hamilton `q_reference_from_body=(w,x,y,z)` with an active body-to-local transform and body-frame right-multiplied gyro increments;
+- `local_reference` has gravity-down `+Y` and a deterministic initial-body-derived yaw zero, but no global heading claim;
+- the first persistent orientation layer is gyro+gravity and must remain useful without magnetometer heading;
 - no installed beacons or display-SDK dependency in the core design;
 - ML remains an augmentation to an uncertainty-aware physics/geometry baseline.
 
