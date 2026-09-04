@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Iterable
 
 import continue_boresight_validation as continuation
-import inspect_boresight_holdout as prior_holdout
 import inspect_boresight_sequence as sequence_inspector
 import rangeweave_boresight_holdout as holdout
 import rangeweave_boresight_sequence as sequence
@@ -48,6 +47,23 @@ def _capture_for_optional_validation(root: Path, session: str, stage: str) -> tu
     name = matches[0].name
     validation_prefix = name[name.index(session): -len(suffix)]
     return matches[0], validation_prefix
+
+
+def _verify_capture_integrity(path: Path) -> None:
+    metadata = capture.load_metadata(path)
+    packets_path = path / capture.PACKETS_FILENAME
+    decoder, stats, byte_count, digest = capture.inspect_file(packets_path)
+    errors = capture.metadata_parity_errors(
+        metadata,
+        decoder=decoder,
+        stats=stats,
+        packets_bytes=byte_count,
+        packets_sha256=digest,
+    )
+    if errors:
+        raise sequence.BoresightSequenceError(
+            f"capture provenance mismatch for {path}: " + "; ".join(errors)
+        )
 
 
 def _capture_provenance(path: Path) -> dict:
@@ -157,9 +173,7 @@ def main() -> int:
     parser.add_argument("--root", default="captures", help="capture directory root")
     parser.add_argument(
         "--output",
-        help=(
-            "artifact path; default calibration/tof-body-rotation-<session>.json"
-        ),
+        help="artifact path; default calibration/tof-body-rotation-<session>.json",
     )
     args = parser.parse_args()
 
@@ -210,6 +224,9 @@ def main() -> int:
         capture_paths = dict(paths)
         capture_paths["m5"] = m5_path
         capture_paths["p5"] = p5_path
+        for path in capture_paths.values():
+            _verify_capture_integrity(path)
+
         gyro_ranges = [item[2].full_scale_dps for item in motions] + [range5.full_scale_dps]
         document = _artifact_document(
             session=args.session,
@@ -240,6 +257,7 @@ def main() -> int:
     print(f"  held-out P5 error:  {validation['held_out_normal_error_deg']:.3f} deg")
     print(f"  fit change at P5:   {validation['fit_rotation_change_deg']:.3f} deg")
     print("  geometry role:      " + document["metadata"]["provenance"]["geometry_profile"]["role"])
+    print("  capture integrity:  metadata hashes replay-verified")
     print("  capture provenance: P0-P5 and M1-M5 hashes embedded")
     return 0
 
