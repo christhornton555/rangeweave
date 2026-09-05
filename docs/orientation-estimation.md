@@ -2,7 +2,7 @@
 
 **Status:** Phase 3 is the active estimation layer. The acquisition/timing path, `imu_sensor -> device_body` mapping, ToF geometry convention and reference-rig `tof_optical -> device_body` rotational boresight are already validated and provide the inputs this layer needs.
 
-The project-owned attitude conventions are now frozen in [`attitude-conventions.md`](attitude-conventions.md). A first deterministic Python gyro+gravity orientation core and replay inspector are implemented as a **Phase 3 candidate under physical validation**.
+The project-owned attitude conventions are frozen in [`attitude-conventions.md`](attitude-conventions.md). The deterministic Python gyro+gravity orientation core, replay inspector and continuous fixed-wall validator are implemented and now have physical reference-rig evidence.
 
 ## Goal
 
@@ -21,6 +21,7 @@ The first success criterion is deliberately rotation-only: when the sensing head
 - short-baseline gyro integration with independent endpoint gravity closure;
 - current +/-500 deg/s gyro configuration and range-utilisation checks;
 - versioned `rangeweave.tof-body-rotation` calibration artifact for the reference sensing head;
+- versioned `rangeweave.tof-time-alignment` timing/profile resolver with quick-start and calibrated modes;
 - ToF plane/ray geometry in the frozen `tof_optical` frame;
 - canonical capture/replay so estimator development can be performed offline before live use.
 
@@ -43,7 +44,7 @@ These conventions are project-owned and must be converted explicitly at Python/A
 
 ### 3B. Six-axis orientation baseline — IMPLEMENTED CANDIDATE
 
-`host/python/rangeweave_orientation.py` now provides a timestamp-driven gyro + accelerometer baseline and `host/python/inspect_orientation.py` replays it on canonical captures.
+`host/python/rangeweave_orientation.py` provides a timestamp-driven gyro + accelerometer baseline and `host/python/inspect_orientation.py` replays it on canonical captures.
 
 Current properties:
 
@@ -56,9 +57,9 @@ Current properties:
 - keeps estimator state separate from permanent calibration artifacts;
 - does not use the magnetometer.
 
-The proportional gravity gain and confidence behaviour are initial engineering defaults, not physically promoted tuning constants. They must be evaluated against recorded and new physical evidence before becoming acceptance criteria.
+The proportional gravity gain and confidence behaviour remain engineering defaults under physical validation rather than universal tuning constants.
 
-### 3C. Rotation-in-place validation — ACTIVE
+### 3C. Rotation-in-place validation — PHYSICAL EVIDENCE COMPLETE; BOUNDS PENDING
 
 The first regression level is complete: all five retained clean hold-move-hold boresight motions have been replayed through the persistent estimator and compared with the already validated short-baseline relative-rotation estimator.
 
@@ -70,33 +71,46 @@ The first regression level is complete: all five retained clean hold-move-hold b
 | M4 | 23.322 deg | 0.745 deg | 0.736 deg |
 | M5 | 24.295 deg | 0.510 deg | 0.859 deg |
 
-All five captures had clean decoder/sequence/health status and acceptable +/-500 deg/s range utilisation. Across varied real motions the persistent estimator remained in sub-degree start/end agreement with the trusted relative estimator. M2 had a noisier startup window than the others but still produced sub-degree agreement.
+All five captures had clean decoder/sequence/health status and acceptable +/-500 deg/s range utilisation. Across varied real motions the persistent estimator remained in sub-degree start/end agreement with the trusted relative estimator.
 
-This is strong regression evidence for axis/sign/composition correctness and basic real-data behaviour, but it is **not** yet the Phase 3 exit test. No final orientation acceptance threshold is frozen from these hold-move-hold regressions alone.
-
-The next physical validation is one continuous multi-axis rotation-in-place capture against a fixed wall/static plane. For every usable ToF frame:
+The continuous wall-normal validator then tested the full chain:
 
 ```text
 ToF normal -> R_body_from_tof -> estimated local/reference orientation
 ```
 
-the same physical wall normal should remain approximately constant throughout the motion.
+on two independent 30 s multi-axis rotation-in-place captures against a fixed wall.
 
-Plane normals are useful here because they are insensitive to the small translations caused by a photographic-head pivot that does not coincide with the ToF optical centre.
+At zero explicit ToF timing compensation:
 
-The continuous validation should report at least:
+| capture | max excursion | residual RMS | p95 | max | start/end delta |
+|---|---:|---:|---:|---:|---:|
+| wall 1 | 38.503 deg | 0.855 deg | 1.825 deg | 3.829 deg | 0.644 deg |
+| wall 2 | 28.412 deg | 0.747 deg | 1.486 deg | 2.352 deg | 0.150 deg |
 
-- stream/health integrity and gyro-range utilisation;
-- orientation initialization quality and gravity-correction diagnostics;
-- number/share of usable ToF frames;
-- transformed local wall-normal mean/reference;
-- angular residual distribution over time (median, RMS, high percentile and maximum);
-- start/end stationary wall-normal consistency;
-- evidence of any residual correlated with fast rotation or acceleration-gated periods.
+Both independently reproduce sub-degree RMS and sub-degree start/end stability.
 
-Protocol v0.1 records `mcu_ready_us` when software observes VL53L5CX data-ready. The physical result was available no later than that timestamp, but the exact internal ranging instant is not exposed. Continuous-motion validation must therefore keep ToF timing semantics visible rather than silently treating the read-complete time as measurement time; if residuals correlate with angular rate, a repeatable effective ToF timing offset may need to become an explicit calibration/timing parameter.
+#### ToF timing evidence
 
-Measure, do not pre-assume, the acceptable angular residual/drift bounds from this evidence.
+Protocol v0.1 records `mcu_ready_us` when software observes VL53L5CX data-ready, not the exact sensor-internal ranging instant. Independent exploratory scans on both wall captures reproduce the same broad optimum around `-20` to `-28 ms`, with `-24 ms` the lowest-RMS 2 ms grid point in both captures.
+
+At `-24 ms`:
+
+| capture | residual RMS | p95 | max | start/end delta |
+|---|---:|---:|---:|---:|
+| wall 1 | 0.776 deg | 1.664 deg | 3.530 deg | 0.703 deg |
+| wall 2 | 0.637 deg | 1.222 deg | 1.859 deg | 0.151 deg |
+
+The timing compensation improves the moving-frame residual distribution while stationary start/end consistency remains essentially unchanged.
+
+`-24 ms` is **not** a universal VL53L5CX constant. The effective observation-time offset can depend on the assembled sensing head, producer firmware/driver path, operating mode/timing settings and timestamp semantics. `host/python/rangeweave_tof_timing.py` therefore resolves timing through two first-class modes:
+
+- **quick-start**: matched `nominal-fallback` profile when available, otherwise conservative `0 ms` with visible `uncalibrated` status;
+- **calibrated**: a matching per-build `rangeweave.tof-time-alignment` artifact with an explicit physical `assembly_id` and configuration fingerprint.
+
+The retained reference-rig artifact is [`../calibration/tof-time-alignment-reference-rig-20260905.json`](../calibration/tof-time-alignment-reference-rig-20260905.json). See [`timing-calibration.md`](timing-calibration.md).
+
+The remaining 3C task is to replay the two reference wall captures through the artifact resolver and freeze conservative acceptance gates from the worse compensated run rather than the best case.
 
 ### 3D. Magnetometer integration, later
 
@@ -141,10 +155,11 @@ Magnetometer-aided heading may be a later Phase 3 extension; it is not required 
 ## Immediate implementation order
 
 1. ~~write/freeze the attitude/quaternion convention and golden composition tests~~ — done;
-2. ~~implement the timestamp-driven six-axis orientation core and replay inspector~~ — candidate implemented;
+2. ~~implement the timestamp-driven six-axis orientation core and replay inspector~~ — done;
 3. ~~replay existing boresight motion captures as regression evidence~~ — M1-M5 complete, all sub-degree start/end delta;
-4. **implement continuous wall-normal validation tooling**;
-5. make one new continuous multi-axis rotation-in-place capture against a static wall;
-6. evaluate transformed wall-normal stability and freeze empirical acceptance bounds;
-7. add orientation-aware ToF geometry/viewing;
-8. then begin magnetometer mapping/calibration and later full 6DoF pose work.
+4. ~~implement continuous wall-normal validation tooling~~ — done;
+5. ~~make independent continuous multi-axis rotation-in-place wall captures against a static wall~~ — two complete;
+6. ~~measure and represent ToF timing alignment without hard-coding one device's value~~ — resolver + reference artifact implemented;
+7. **replay both wall captures through calibrated artifact resolution and freeze conservative empirical acceptance bounds**;
+8. add orientation-aware ToF geometry/viewing;
+9. then begin magnetometer mapping/calibration and later full 6DoF pose work.
