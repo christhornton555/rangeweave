@@ -384,13 +384,19 @@ def main() -> int:
 
     print()
     print(
-        "Interpretation: timing role is '{}'. No Phase 3 wall-normal acceptance threshold "
-        "is frozen yet; retain calibration/profile provenance when comparing results.".format(
+        "Interpretation: timing role is '{}'. The frozen calibrated reference-path wall "
+        "gate is applied separately by host/python/validate_phase3_wall.py; retain "
+        "calibration/profile provenance when comparing exploratory or quick-start results.".format(
             timing_resolution.role
         )
     )
 
-    failed = bool(decoder.frames_bad or stats.sequence_gaps or health_nonzero)
+    failed = bool(
+        decoder.frames_bad
+        or stats.semantic_errors
+        or stats.sequence_gaps
+        or health_nonzero
+    )
     failed = failed or range_usage.rejected
     return 1 if failed else 0
 
