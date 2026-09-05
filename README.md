@@ -1,6 +1,6 @@
 # Rangeweave - RGB-Free Active Depth + IMU Spatial Mapping
 
-> **Project status:** reference sensor acquisition, protocol/capture/replay, raw/temporal depth viewing, nominal 64-zone projection and the reference-rig ToF/body rotational boresight workflow are physically validated on the current Pico 2 W stack. The exact reference boresight artifact is promoted. **Phase 3 orientation estimation now has frozen attitude conventions, a deterministic gyro+gravity replay core, two independent calibrated rotation-in-place wall validations and an empirical executable reference wall gate.** Translation/odometry and 3D mapping remain work in progress.
+> **Project status:** reference sensor acquisition, protocol/capture/replay, raw/temporal depth viewing, nominal 64-zone projection and the reference-rig ToF/body rotational boresight workflow are physically validated on the current Pico 2 W stack. The exact reference boresight artifact is promoted. **Phase 3 reference orientation now has frozen attitude conventions, a deterministic gyro+gravity replay core, two independent calibrated rotation-in-place wall validations and executable PASS evidence against a frozen empirical reference wall gate.** Translation/odometry and 3D mapping remain work in progress.
 
 Rangeweave explores a small, inexpensive **RGB-free** sensing module combining sparse time-of-flight depth with inertial sensing. The long-term goal is to turn synchronized depth + motion observations into trajectories, sparse point clouds and eventually 3D maps while keeping the sensing head compact and portable beyond the current Raspberry Pi Pico prototype.
 
@@ -40,11 +40,12 @@ The frozen hardware diagnostic remains the first reproduction gate and should re
 - deterministic persistent gyro+gravity orientation replay across five retained hold-move-hold motions;
 - two independent continuous rotation-in-place wall validations with calibrated ToF/IMU timing alignment;
 - versioned per-build `rangeweave.tof-time-alignment` resolution for the reference rig;
-- empirical Phase 3 reference wall gate with quantified residual, drift, usable-frame and motion bounds.
+- empirical Phase 3 reference wall gate with quantified residual, drift, usable-frame and motion bounds;
+- executable PASS evidence for both independent wall captures under that frozen gate.
 
 The September 2026 reference boresight run predicted a held-out P5 ToF wall normal to **0.644 deg** and changed the fitted extrinsic by only **0.639 deg** after P5 was revealed. The six-pose result was approximately `Rx +5.880, Ry +3.930, Rz +0.160 deg` with `0.797 deg` normal RMS. These numbers describe that assembly only; other units must be calibrated independently for highest accuracy.
 
-The two continuous Phase 3 wall captures retained `98.0%` and `99.8%` usable ToF observations. With the reference rig's calibrated `-24 ms` effective ToF timing offset they produced wall-normal RMS values of `0.776 deg` and `0.637 deg`. The executable reference-path gate is deliberately looser than either run and is not a universal sensor specification.
+The two continuous Phase 3 wall captures retained `98.0%` and `99.8%` usable ToF observations. With the reference rig's calibrated `-24 ms` effective ToF timing offset they produced wall-normal RMS values of `0.776 deg` and `0.637 deg`, and both passed the executable reference-path gate. The gate is deliberately looser than either run and is not a universal sensor specification.
 
 **Implemented / experimental**
 
@@ -59,7 +60,6 @@ The two continuous Phase 3 wall captures retained `98.0%` and `99.8%` usable ToF
 
 **Still open**
 
-- replaying both retained wall captures through the final executable gate on the local reference checkout;
 - orientation-aware ToF geometry/viewing;
 - magnetometer/body calibration and confidence-gated magnetic heading;
 - independent cross-unit reproduction of the boresight/timing/orientation workflow;
@@ -67,11 +67,9 @@ The two continuous Phase 3 wall captures retained `98.0%` and `99.8%` usable ToF
 - robust freehand 6DoF tracking, odometry, loop closure and metrically validated 3D reconstruction;
 - Android/BLE/Wi-Fi/ESP32 production parity.
 
-## Current milestone: orientation
+## Current milestone: orientation-aware geometry
 
-Phase 3 adds persistent attitude estimation before any attempt at freehand translation/SLAM.
-
-The current baseline:
+The first gravity-referenced Phase 3 reference-orientation gate is now satisfied on the tested reference rig. The validated orientation baseline:
 
 1. uses explicit project-owned scalar-first Hamilton quaternion and `local_reference_from_body` conventions;
 2. integrates mapped body-frame gyro using recorded sensor timestamps;
@@ -98,10 +96,10 @@ These are evidence-based project validation bounds, not guaranteed cross-unit sp
 
 The next steps are:
 
-1. replay both retained wall captures through [`host/python/validate_phase3_wall.py`](host/python/validate_phase3_wall.py);
-2. once both reproduce PASS locally, proceed to orientation-aware ToF viewing/projection;
+1. add orientation-aware ToF viewing/projection so calibrated rays/points can be expressed in `local_reference` during replay and live use;
+2. verify static geometry remains stable in that orientation-aware view using the retained wall evidence;
 3. add magnetic heading only after `mag_sensor -> device_body`, hard/soft-iron calibration and disturbance gating are physically validated;
-4. only after orientation is stable, proceed to translation/6DoF pose, known-pose scanning and freehand odometry.
+4. only after orientation-aware geometry is stable, proceed to translation/6DoF pose, known-pose scanning and freehand odometry.
 
 See [the Phase 3 orientation plan](docs/orientation-estimation.md), [the frozen attitude conventions](docs/attitude-conventions.md), [the physical orientation evidence](docs/validation/orientation-reference-rig-2026-09.md), and [the overall project roadmap](docs/project-plan.md).
 
