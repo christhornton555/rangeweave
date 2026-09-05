@@ -92,3 +92,33 @@ Why these values:
 These bounds validate the current reference estimation path. They may be revised when independent builds provide enough cross-unit evidence, but revisions must remain evidence-based and must not silently redefine old validation results.
 
 The executable gate is `host/python/validate_phase3_wall.py`; the pure numeric contract is in `host/python/rangeweave_phase3_gate.py`.
+
+## Executable gate replay
+
+Both independent continuous wall captures were replayed through the executable gate using the calibrated boresight artifact and the scoped calibrated ToF timing artifact. Neither run supplied the `-24 ms` timing offset numerically.
+
+Capture 1:
+
+- stream health: `PASS`
+- gyro range: `PASS`
+- usable observations: `98.0%` — `PASS`
+- orientation excursion: `38.503 deg` — `PASS`
+- residual RMS: `0.776 deg` — `PASS`
+- residual p95: `1.664 deg` — `PASS`
+- residual maximum: `3.530 deg` — `PASS`
+- start/end delta: `0.703 deg` — `PASS`
+- final result: `PHASE 3 WALL GATE: PASS`
+
+Capture 2:
+
+- stream health: `PASS`
+- gyro range: `PASS`
+- usable observations: `99.8%` — `PASS`
+- orientation excursion: `28.412 deg` — `PASS`
+- residual RMS: `0.637 deg` — `PASS`
+- residual p95: `1.222 deg` — `PASS`
+- residual maximum: `1.859 deg` — `PASS`
+- start/end delta: `0.151 deg` — `PASS`
+- final result: `PHASE 3 WALL GATE: PASS`
+
+This completes the first physically replayed Phase 3 reference-path exit evidence: two independent continuous wall rotations pass the same frozen executable gate using versioned calibrated boresight and timing resolution. This does not establish cross-unit equivalence; quick-start and independently calibrated builds retain their own role/provenance semantics.
