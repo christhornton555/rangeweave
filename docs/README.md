@@ -14,6 +14,7 @@ Start here:
 - [Coordinate frames](coordinate-frames.md) - frozen optical/body conventions and current local/world-frame status.
 - [Validation](validation/README.md) - reference self-test evidence and reproduction reporting.
 - [Boresight physical evidence](validation/boresight-reference-rig-2026-09.md) - reference-rig axis, gyro-range, settling, P0-P5 and held-out-validation summary.
+- [Phase 3 orientation physical evidence](validation/orientation-reference-rig-2026-09.md) - two continuous wall captures, calibrated timing-artifact replay and the empirical reference wall gate.
 - [Calibration artifacts](../calibration/README.md) - generated per-device boresight/timing artifacts and provenance policy.
 - [Architecture](architecture.md) - layer boundaries and portability contract.
 - [Protocol](protocol.md) - packet/record requirements and protocol status.
@@ -29,9 +30,9 @@ Start here:
 
 The acquisition/protocol/capture path, nominal sparse geometry and reference-rig ToF/body rotational boresight are complete on the reference stack. The exact boresight artifact is promoted under `calibration/`.
 
-Phase 3 orientation is active. Project-owned attitude/quaternion conventions are frozen; the deterministic gyro+gravity estimator has passed five retained hold-move-hold regressions and two independent continuous rotation-in-place wall captures. Both wall captures remain sub-degree RMS at zero timing compensation, and independent timing scans reproduce a broad `-20` to `-28 ms` optimum with `-24 ms` the lowest-RMS 2 ms grid point in both reference-rig runs.
+Phase 3 orientation is active. Project-owned attitude/quaternion conventions are frozen; the deterministic gyro+gravity estimator has passed five retained hold-move-hold regressions and two independent continuous rotation-in-place wall captures. Both captures reproduce their calibrated `-24 ms` timing result through the versioned per-build timing resolver rather than a hard-coded offset.
 
-The timing result is now represented as a scoped per-build `rangeweave.tof-time-alignment` artifact rather than a universal VL53L5CX constant. Quick-start timing remains a first-class nominal/uncalibrated path; calibrated mode requires a matching physical assembly/configuration artifact. The next Phase 3 step is replaying the reference wall evidence through that resolver and then freezing conservative physical acceptance bounds before orientation-aware ToF viewing.
+An empirical Phase 3 reference wall gate is now encoded and documented: clean stream/health, gyro-range PASS, at least 95% usable wall frames, at least 20 deg orientation excursion, RMS <= 1.0 deg, p95 <= 2.0 deg, max <= 5.0 deg and start/end delta <= 1.0 deg. These are project validation bounds derived from the reference evidence, not universal cross-unit sensor specifications. The next step is replaying both retained wall captures through the executable gate before proceeding to orientation-aware ToF geometry/viewing.
 
 ## Calibration terminology
 
