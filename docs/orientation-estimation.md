@@ -1,8 +1,8 @@
 # Orientation estimation plan
 
-**Status:** Phase 3 is the active estimation layer. The acquisition/timing path, `imu_sensor -> device_body` mapping, ToF geometry convention and reference-rig `tof_optical -> device_body` rotational boresight are already validated and provide the inputs this layer needs.
+**Status:** the first gravity-referenced Phase 3 reference-orientation gate is satisfied on the tested reference rig. The acquisition/timing path, `imu_sensor -> device_body` mapping, ToF geometry convention and reference-rig `tof_optical -> device_body` rotational boresight provide the validated inputs; the next development step is orientation-aware ToF geometry/viewing.
 
-The project-owned attitude conventions are frozen in [`attitude-conventions.md`](attitude-conventions.md). The deterministic Python gyro+gravity orientation core has now passed the reference-rig hold-move-hold regressions and two independent continuous rotation-in-place wall validations using calibrated ToF/body boresight and calibrated ToF/IMU timing alignment.
+The project-owned attitude conventions are frozen in [`attitude-conventions.md`](attitude-conventions.md). The deterministic Python gyro+gravity orientation core has passed the reference-rig hold-move-hold regressions and two independent continuous rotation-in-place wall validations using calibrated ToF/body boresight and calibrated ToF/IMU timing alignment. Both wall captures also pass the same frozen executable reference wall gate.
 
 ## Goal
 
@@ -57,7 +57,7 @@ Current properties:
 - keeps estimator state separate from permanent calibration artifacts;
 - does not use the magnetometer.
 
-### 3C. Rotation-in-place validation — REFERENCE GATE FROZEN
+### 3C. Rotation-in-place validation — REFERENCE GATE PASSED
 
 All five retained clean hold-move-hold boresight motions replay in sub-degree start/end agreement with the already validated short-baseline relative-rotation estimator:
 
@@ -99,7 +99,7 @@ wall-normal residual maximum:  <= 5.0 deg
 start/end wall-normal delta:   <= 1.0 deg
 ```
 
-These are project validation bounds derived from the reference evidence, not universal cross-unit sensor specifications. The p95/RMS bounds carry most of the stability meaning; the looser maximum bound prevents one noisy ToF frame from making the gate brittle. Independent builds may motivate later evidence-based revisions, but old validation evidence must retain the gate version used at the time.
+Both independent retained wall captures pass this gate through `host/python/validate_phase3_wall.py` with the calibrated boresight and timing artifacts. These are project validation bounds derived from the reference evidence, not universal cross-unit sensor specifications. The p95/RMS bounds carry most of the stability meaning; the looser maximum bound prevents one noisy ToF frame from making the gate brittle. Independent builds may motivate later evidence-based revisions, but old validation evidence must retain the gate version used at the time.
 
 The executable gate is `host/python/validate_phase3_wall.py`; the pure numeric contract is `host/python/rangeweave_phase3_gate.py`. Full evidence is in [`validation/orientation-reference-rig-2026-09.md`](validation/orientation-reference-rig-2026-09.md).
 
@@ -117,13 +117,13 @@ Before enabling magnetic heading:
 
 The six-axis estimator must remain useful when magnetic heading is unavailable or untrusted.
 
-### 3E. Orientation-aware ToF geometry — NEXT AFTER EXECUTABLE GATE REPLAY
+### 3E. Orientation-aware ToF geometry — NEXT
 
-Once both retained wall captures reproduce PASS through the final executable gate:
+With the reference rotation-only gate now satisfied:
 
 - rotate calibrated ToF rays/points from `tof_optical` through `device_body` into the local/reference frame;
 - add an orientation-aware point-cloud/plane viewer;
-- verify static geometry remains angularly stable while the sensing head rotates;
+- verify static geometry remains angularly stable while the sensing head rotates using the retained wall evidence;
 - only then proceed to translation and 6DoF pose estimation.
 
 ## Non-goals for Phase 3
@@ -140,7 +140,7 @@ Phase 3 does **not** yet claim:
 
 ## Exit gate
 
-The first gravity-referenced Phase 3 orientation gate is satisfied when a calibrated replayable orientation path passes the executable reference wall validation with frozen frame/quaternion conventions, clean acquisition health and visible calibration provenance.
+The first gravity-referenced Phase 3 reference-orientation gate is satisfied: a calibrated replayable orientation path passes the executable reference wall validation on two independent continuous wall captures with frozen frame/quaternion conventions, clean acquisition health and visible calibration provenance.
 
 Magnetometer-aided heading may be a later Phase 3 extension; it is not required for this first gravity-referenced rotation-only gate.
 
@@ -153,6 +153,6 @@ Magnetometer-aided heading may be a later Phase 3 extension; it is not required 
 5. ~~capture independent continuous multi-axis rotation-in-place wall sequences~~ — two complete;
 6. ~~measure and represent ToF/IMU timing alignment without hard-coding a sensor-model constant~~ — reference per-build artifact implemented;
 7. ~~freeze empirical reference wall acceptance bounds~~ — done;
-8. **replay both retained wall captures through `validate_phase3_wall.py` and record PASS/FAIL**;
-9. add orientation-aware ToF geometry/viewing;
+8. ~~replay both retained wall captures through `validate_phase3_wall.py` and record PASS/FAIL~~ — both PASS;
+9. **add orientation-aware ToF geometry/viewing**;
 10. then begin magnetometer mapping/calibration and later full 6DoF pose work.
