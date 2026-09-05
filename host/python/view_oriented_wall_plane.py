@@ -1,9 +1,14 @@
-"""Visualize a flat wall as a rolling best-fit plane in ``local_reference``.
+"""Visualize a flat wall as a centred best-fit plane in ``local_reference``.
 
 This diagnostic is for captures known to contain one approximately planar target.
 It complements ``view_oriented_point_cloud.py`` by fitting an orthogonal plane to
 each orientation-compensated ToF frame, averaging accepted plane normals over a
-short trailing window, and showing the resulting residual orientation over time.
+short centred window, and showing the resulting residual orientation over time.
+
+Because this is offline replay, the smoothing is deliberately non-causal: a
+centred window avoids the phase lag of the earlier trailing average.  The
+instantaneous plane-normal error is retained underneath the smoothed trace so the
+actual frame-by-frame behaviour remains visible.
 
 Only orientation is evaluated.  Each displayed plane is placed through the current
 point-cloud centroid, so sensing-head translation does not masquerade as a plane-
@@ -37,10 +42,13 @@ DEFAULT_MAX_RESIDUAL_MM = 30.0
 @dataclass(frozen=True)
 class PlaneDiagnostic:
     fit: reference_plane.PlaneFit | None
-    rolling_normal: reference_plane.Vector3 | None
-    angular_error_deg: float | None
-    delta_rx_deg: float | None
-    delta_ry_deg: float | None
+    instant_angular_error_deg: float | None
+    instant_delta_rx_deg: float | None
+    instant_delta_ry_deg: float | None
+    smoothed_normal: reference_plane.Vector3 | None
+    smoothed_angular_error_deg: float | None
+    smoothed_delta_rx_deg: float | None
+    smoothed_delta_ry_deg: float | None
 
 
 def _normal_rx_ry(normal):
@@ -78,9 +86,40 @@ def _accepted_fit(points):
     return fit
 
 
-def analyse_planes(replay: replay_view.ReplayData, *, window: int):
-    if int(window) < 1:
+def _centred_window_fits(fits, index: int, window: int):
+    """Return accepted fits in one full centred odd-width window.
+
+    Edge frames without a complete centred window return an empty tuple.  Rejected
+    plane fits inside the window are omitted, but at least a majority of the
+    requested window must remain before a smoothed normal is reported.
+    """
+
+    width = int(window)
+    if width < 1:
         raise reference_plane.ReferencePlaneError("plane window must be at least one frame")
+    if width % 2 == 0:
+        raise reference_plane.ReferencePlaneError(
+            "centred plane window must be odd (for example 1, 3, 5 or 7)"
+        )
+    half = width // 2
+    start = int(index) - half
+    end = int(index) + half + 1
+    if start < 0 or end > len(fits):
+        return ()
+    accepted = tuple(item for item in fits[start:end] if item is not None)
+    minimum = half + 1
+    return accepted if len(accepted) >= minimum else ()
+
+
+def analyse_planes(replay: replay_view.ReplayData, *, window: int):
+    width = int(window)
+    if width < 1:
+        raise reference_plane.ReferencePlaneError("plane window must be at least one frame")
+    if width % 2 == 0:
+        raise reference_plane.ReferencePlaneError(
+            "centred plane window must be odd (for example 1, 3, 5 or 7)"
+        )
+
     fits = tuple(_accepted_fit(frame.points_reference) for frame in replay.frames)
     accepted = [fit for fit in fits if fit is not None]
     if len(accepted) < 10:
@@ -92,20 +131,44 @@ def analyse_planes(replay: replay_view.ReplayData, *, window: int):
     baseline_rx, baseline_ry = _normal_rx_ry(baseline)
     diagnostics = []
     for index, fit in enumerate(fits):
-        start = max(0, index - int(window) + 1)
-        window_fits = [item for item in fits[start : index + 1] if item is not None]
+        if fit is None:
+            instant_angle = None
+            instant_rx = None
+            instant_ry = None
+        else:
+            fit_rx, fit_ry = _normal_rx_ry(fit.normal)
+            instant_angle = reference_plane.angle_deg(fit.normal, baseline)
+            instant_rx = fit_rx - baseline_rx
+            instant_ry = fit_ry - baseline_ry
+
+        window_fits = _centred_window_fits(fits, index, width)
         if not window_fits:
-            diagnostics.append(PlaneDiagnostic(fit, None, None, None, None))
+            diagnostics.append(
+                PlaneDiagnostic(
+                    fit=fit,
+                    instant_angular_error_deg=instant_angle,
+                    instant_delta_rx_deg=instant_rx,
+                    instant_delta_ry_deg=instant_ry,
+                    smoothed_normal=None,
+                    smoothed_angular_error_deg=None,
+                    smoothed_delta_rx_deg=None,
+                    smoothed_delta_ry_deg=None,
+                )
+            )
             continue
-        rolling = reference_plane.mean_direction(item.normal for item in window_fits)
-        rx, ry = _normal_rx_ry(rolling)
+
+        smoothed = reference_plane.mean_direction(item.normal for item in window_fits)
+        smooth_rx, smooth_ry = _normal_rx_ry(smoothed)
         diagnostics.append(
             PlaneDiagnostic(
                 fit=fit,
-                rolling_normal=rolling,
-                angular_error_deg=reference_plane.angle_deg(rolling, baseline),
-                delta_rx_deg=rx - baseline_rx,
-                delta_ry_deg=ry - baseline_ry,
+                instant_angular_error_deg=instant_angle,
+                instant_delta_rx_deg=instant_rx,
+                instant_delta_ry_deg=instant_ry,
+                smoothed_normal=smoothed,
+                smoothed_angular_error_deg=reference_plane.angle_deg(smoothed, baseline),
+                smoothed_delta_rx_deg=smooth_rx - baseline_rx,
+                smoothed_delta_ry_deg=smooth_ry - baseline_ry,
             )
         )
     return fits, tuple(diagnostics), baseline
@@ -181,27 +244,48 @@ def build_figure(replay, diagnostics, baseline, *, fps, window):
     )
     replay_view._configure_axis(
         ax_cloud,
-        title=f"local_reference wall + rolling {window}-frame plane",
+        title=f"local_reference wall + centred {window}-frame plane",
         frame_name="local_reference",
         limits=limits,
     )
     scatter = ax_cloud.scatter([], [], [], s=28)
 
     times = [frame.time_s for frame in replay.frames]
-    rx_values = [item.delta_rx_deg if item.delta_rx_deg is not None else math.nan for item in diagnostics]
-    ry_values = [item.delta_ry_deg if item.delta_ry_deg is not None else math.nan for item in diagnostics]
-    angle_values = [
-        item.angular_error_deg if item.angular_error_deg is not None else math.nan
+    instant_angle_values = [
+        item.instant_angular_error_deg
+        if item.instant_angular_error_deg is not None
+        else math.nan
         for item in diagnostics
     ]
-    ax_error.plot(times, rx_values, label="ΔRx normal tilt")
-    ax_error.plot(times, ry_values, label="ΔRy normal tilt")
-    ax_error.plot(times, angle_values, label="total normal error")
+    rx_values = [
+        item.smoothed_delta_rx_deg if item.smoothed_delta_rx_deg is not None else math.nan
+        for item in diagnostics
+    ]
+    ry_values = [
+        item.smoothed_delta_ry_deg if item.smoothed_delta_ry_deg is not None else math.nan
+        for item in diagnostics
+    ]
+    angle_values = [
+        item.smoothed_angular_error_deg
+        if item.smoothed_angular_error_deg is not None
+        else math.nan
+        for item in diagnostics
+    ]
+    ax_error.plot(
+        times,
+        instant_angle_values,
+        label="instant total normal error",
+        linewidth=1.0,
+        alpha=0.25,
+    )
+    ax_error.plot(times, rx_values, label="centred ΔRx normal tilt")
+    ax_error.plot(times, ry_values, label="centred ΔRy normal tilt")
+    ax_error.plot(times, angle_values, label="centred total normal error")
     ax_error.axhline(0.0, linewidth=0.8)
     cursor = ax_error.axvline(times[0], linewidth=1.0)
     ax_error.set_xlabel("orientation time (s)")
     ax_error.set_ylabel("angle from capture mean (deg)")
-    ax_error.set_title("Rolling plane-normal stability")
+    ax_error.set_title("Centred plane-normal stability")
     ax_error.grid(True, alpha=0.25)
     ax_error.legend()
 
@@ -224,14 +308,14 @@ def build_figure(replay, diagnostics, baseline, *, fps, window):
             normal_artist[0].remove()
             normal_artist[0] = None
 
-        if diagnostic.rolling_normal is not None:
-            corners, centroid = _plane_corners(frame.points_reference, diagnostic.rolling_normal)
+        if diagnostic.smoothed_normal is not None:
+            corners, centroid = _plane_corners(frame.points_reference, diagnostic.smoothed_normal)
             if corners is not None:
                 plane = Poly3DCollection([corners], alpha=0.20)
                 ax_cloud.add_collection3d(plane)
                 plane_artist[0] = plane
                 scale = 120.0
-                nx, ny, nz = diagnostic.rolling_normal
+                nx, ny, nz = diagnostic.smoothed_normal
                 normal_artist[0] = ax_cloud.quiver(
                     centroid[0], centroid[1], centroid[2],
                     nx * scale, ny * scale, nz * scale,
@@ -243,14 +327,16 @@ def build_figure(replay, diagnostics, baseline, *, fps, window):
         else:
             fit_text = (
                 f"instant plane RMS {diagnostic.fit.rms_residual_mm:.2f} mm, "
-                f"max {diagnostic.fit.max_abs_residual_mm:.2f} mm"
+                f"max {diagnostic.fit.max_abs_residual_mm:.2f} mm, "
+                f"normal error {diagnostic.instant_angular_error_deg:.3f}°"
             )
-        if diagnostic.angular_error_deg is None:
-            angle_text = "rolling normal unavailable"
+        if diagnostic.smoothed_angular_error_deg is None:
+            angle_text = "centred normal unavailable"
         else:
             angle_text = (
-                f"rolling normal error {diagnostic.angular_error_deg:.3f}°  "
-                f"ΔRx {diagnostic.delta_rx_deg:+.3f}°  ΔRy {diagnostic.delta_ry_deg:+.3f}°"
+                f"centred normal error {diagnostic.smoothed_angular_error_deg:.3f}°  "
+                f"ΔRx {diagnostic.smoothed_delta_rx_deg:+.3f}°  "
+                f"ΔRy {diagnostic.smoothed_delta_ry_deg:+.3f}°"
             )
         status.set_text(
             f"frame {frame.source_index}/{replay.total_tof_grids - 1}  t={frame.time_s:.3f}s  "
@@ -275,38 +361,56 @@ def build_figure(replay, diagnostics, baseline, *, fps, window):
     fig.suptitle(
         "Rangeweave local-reference flat-wall diagnostic\n"
         f"baseline normal Rx {baseline_rx:+.3f}°, Ry {baseline_ry:+.3f}° — "
-        "plane normal constrains two rotational axes only"
+        f"centred {window}-frame smoothing; plane normal constrains two rotational axes"
     )
     fig.tight_layout(rect=(0.0, 0.07, 1.0, 0.93))
     return plt, fig, animation
 
 
+def _error_stats(values):
+    values = [float(value) for value in values if value is not None]
+    if not values:
+        raise reference_plane.ReferencePlaneError("no plane-normal errors are available")
+    return {
+        "count": len(values),
+        "median": statistics.median(values),
+        "rms": math.sqrt(sum(value * value for value in values) / len(values)),
+        "p95": _percentile(values, 0.95),
+        "max": max(values),
+    }
+
+
 def print_summary(replay, diagnostics, baseline, *, window, fps):
     accepted = [item.fit for item in diagnostics if item.fit is not None]
-    angular = [
-        item.angular_error_deg
-        for item in diagnostics
-        if item.angular_error_deg is not None
-    ]
-    rx = [item.delta_rx_deg for item in diagnostics if item.delta_rx_deg is not None]
-    ry = [item.delta_ry_deg for item in diagnostics if item.delta_ry_deg is not None]
+    instant = [item.instant_angular_error_deg for item in diagnostics]
+    smoothed = [item.smoothed_angular_error_deg for item in diagnostics]
+    rx = [item.smoothed_delta_rx_deg for item in diagnostics if item.smoothed_delta_rx_deg is not None]
+    ry = [item.smoothed_delta_ry_deg for item in diagnostics if item.smoothed_delta_ry_deg is not None]
+    instant_stats = _error_stats(instant)
+    smooth_stats = _error_stats(smoothed)
     baseline_rx, baseline_ry = _normal_rx_ry(baseline)
-    rms_angle = math.sqrt(sum(value * value for value in angular) / len(angular))
 
     print("Rangeweave local-reference wall-plane diagnostic")
     print(f"  capture:          {replay.packets_path}")
     print(f"  stream health:    {'PASS' if replay.stream_clean else 'NOT CLEAN'}")
     print(f"  replay frames:    {len(replay.frames)} / {replay.total_tof_grids}")
     print(f"  accepted planes:  {len(accepted)} / {len(replay.frames)}")
-    print(f"  rolling window:   {int(window)} frames")
+    print(f"  centred window:   {int(window)} frames")
     print(f"  playback rate:    {float(fps):.3f} fps")
     print(f"  baseline normal:  X {baseline[0]:+.6f}  Y {baseline[1]:+.6f}  Z {baseline[2]:+.6f}")
     print(f"  baseline tilt:    Rx {baseline_rx:+.3f} deg  Ry {baseline_ry:+.3f} deg")
-    print("  rolling normal error vs capture mean:")
-    print(f"    median:          {statistics.median(angular):.3f} deg")
-    print(f"    RMS:             {rms_angle:.3f} deg")
-    print(f"    p95:             {_percentile(angular, 0.95):.3f} deg")
-    print(f"    max:             {max(angular):.3f} deg")
+    print("  instantaneous normal error vs capture mean:")
+    print(f"    samples:         {instant_stats['count']}")
+    print(f"    median:          {instant_stats['median']:.3f} deg")
+    print(f"    RMS:             {instant_stats['rms']:.3f} deg")
+    print(f"    p95:             {instant_stats['p95']:.3f} deg")
+    print(f"    max:             {instant_stats['max']:.3f} deg")
+    print(f"  centred {int(window)}-frame normal error vs capture mean:")
+    print(f"    samples:         {smooth_stats['count']}")
+    print(f"    median:          {smooth_stats['median']:.3f} deg")
+    print(f"    RMS:             {smooth_stats['rms']:.3f} deg")
+    print(f"    p95:             {smooth_stats['p95']:.3f} deg")
+    print(f"    max:             {smooth_stats['max']:.3f} deg")
     print(f"    |Delta Rx| p95:  {_percentile([abs(value) for value in rx], 0.95):.3f} deg")
     print(f"    |Delta Ry| p95:  {_percentile([abs(value) for value in ry], 0.95):.3f} deg")
     print(
@@ -321,7 +425,7 @@ def print_summary(replay, diagnostics, baseline, *, window, fps):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Replay a known flat wall with a rolling best-fit local-reference plane"
+        description="Replay a known flat wall with a centred best-fit local-reference plane"
     )
     parser.add_argument("capture", help="capture directory or packets.bin")
     parser.add_argument("--boresight-artifact", required=True)
@@ -341,6 +445,8 @@ def main() -> int:
         parser.error("--fps must be greater than zero")
     if args.plane_window < 1:
         parser.error("--plane-window must be at least 1")
+    if args.plane_window % 2 == 0:
+        parser.error("--plane-window must be odd for centred smoothing")
 
     try:
         replay = replay_view.build_replay_data(
