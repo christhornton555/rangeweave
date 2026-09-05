@@ -1,0 +1,90 @@
+{
+  "applies_to": {
+    "assembly_id": "reference-rig-2026-09",
+    "protocol": {
+      "major": 0,
+      "minor": 1
+    },
+    "stream_info": {
+      "firmware_label": "rangeweave-pico2w-acq-0.1",
+      "info_revision": 0,
+      "source_profile": "pico2w-lsm6dsox-lis3mdl-vl53l5cx-8x8-15hz",
+      "tof_default_field_mask": 3,
+      "tof_grid": {
+        "cols": 8,
+        "hz": 15,
+        "rows": 8
+      },
+      "tof_i2c_address": 41
+    }
+  },
+  "effective_offset_ms": -24.0,
+  "evidence": {
+    "method": "fixed-wall-rotation-offset-scan-v1",
+    "offset_scan": {
+      "max_ms": 20.0,
+      "min_ms": -80.0,
+      "selected_ms": -24.0,
+      "step_ms": 2.0,
+      "supported_plateau_ms": [
+        -28.0,
+        -20.0
+      ],
+      "timing_semantics": "offset is added to protocol mcu_ready_us before attitude interpolation"
+    },
+    "captures": [
+      {
+        "capture_directory": "capture_20260905_000517Z_phase3-rotation-in-place-wall",
+        "packets_sha256": "69a2a48fedb65b58b3e8adb21c0ab820ff802cedd68dfbb996fa33d7f6220b67",
+        "orientation_excursion_deg": 38.503,
+        "zero_offset": {
+          "residual_max_deg": 3.829,
+          "residual_median_deg": 0.482,
+          "residual_p95_deg": 1.825,
+          "residual_rms_deg": 0.855,
+          "start_end_delta_deg": 0.644
+        },
+        "selected_offset": {
+          "offset_ms": -24.0,
+          "residual_max_deg": 3.53,
+          "residual_median_deg": 0.464,
+          "residual_p95_deg": 1.664,
+          "residual_rms_deg": 0.776,
+          "start_end_delta_deg": 0.703
+        }
+      },
+      {
+        "capture_directory": "capture_20260905_005203Z_phase3-rotation-in-place-wall-2",
+        "packets_sha256": "eeec92bad3b015760d70a3ec8c163a96789eec91eaa61da78b8c284a0e284971",
+        "orientation_excursion_deg": 28.412,
+        "zero_offset": {
+          "residual_max_deg": 2.352,
+          "residual_median_deg": 0.415,
+          "residual_p95_deg": 1.486,
+          "residual_rms_deg": 0.747,
+          "start_end_delta_deg": 0.15
+        },
+        "selected_offset": {
+          "offset_ms": -24.0,
+          "residual_max_deg": 1.859,
+          "residual_median_deg": 0.367,
+          "residual_p95_deg": 1.222,
+          "residual_rms_deg": 0.637,
+          "start_end_delta_deg": 0.151
+        }
+      }
+    ],
+    "interpretation": "Two independent continuous wall captures reproduce the same broad -20 to -28 ms optimum region. -24 ms is the lowest-RMS 2 ms grid point in both captures. This calibrates the current reference assembly/configuration only; it is not a universal VL53L5CX constant."
+  },
+  "metadata": {
+    "created_at_utc": "2026-09-05T01:22:00Z",
+    "device_identity_note": "Protocol v0.1 exposes no stable physical ToF serial, so assembly_id is a builder/deployment-managed identity and is required for calibrated matching.",
+    "tooling": "Derived from host/python/inspect_orientation_wall.py physical replay evidence"
+  },
+  "name": "reference-rig-2026-09-tof-time-alignment",
+  "offset_sign_convention": "offset_added_to_mcu_ready_us_before_attitude_interpolation",
+  "role": "calibrated",
+  "schema": "rangeweave.tof-time-alignment",
+  "schema_version": 1,
+  "timestamp_field": "mcu_ready_us"
+}
