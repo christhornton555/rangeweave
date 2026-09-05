@@ -206,7 +206,8 @@ def main() -> int:
         print(f"  gravity closure:  {relative.gravity_closure_error_deg:.3f} deg")
         print(f"  estimator delta:  {relative_difference:.3f} deg")
         print(
-            "  note: no Phase 3 acceptance threshold is frozen yet; this is regression evidence."
+            "  note: no separate hold-move-hold acceptance threshold is frozen; "
+            "this remains regression evidence alongside the executable wall gate."
         )
 
     print()
@@ -215,7 +216,12 @@ def main() -> int:
         "Yaw is propagated by gyro but is not absolutely observed."
     )
 
-    failed = bool(decoder.frames_bad or stats.sequence_gaps or health_nonzero)
+    failed = bool(
+        decoder.frames_bad
+        or stats.semantic_errors
+        or stats.sequence_gaps
+        or health_nonzero
+    )
     failed = failed or range_usage.rejected
     return 1 if failed else 0
 
