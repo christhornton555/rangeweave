@@ -14,6 +14,7 @@ import rangeweave_imu_quality as imu_quality
 import rangeweave_orientation as ori
 import rangeweave_orientation_wall as wall
 import rangeweave_protocol as rw
+import rangeweave_tof_timing as tof_timing
 
 
 def _resolve_packets_path(path: Path) -> Path:
@@ -124,12 +125,35 @@ def main() -> int:
         help="proportional gravity-correction gain in 1/s",
     )
     parser.add_argument(
+        "--timing-mode",
+        choices=tof_timing.MODES,
+        default=tof_timing.MODE_QUICK_START,
+        help=(
+            "ToF timing resolution mode: quick-start uses a matching nominal profile "
+            "or visible zero-offset fallback; calibrated requires a matching per-build artifact"
+        ),
+    )
+    parser.add_argument(
+        "--timing-artifact",
+        help=(
+            "rangeweave.tof-time-alignment JSON artifact; calibrated mode requires a "
+            "calibrated artifact, quick-start may accept a supplied nominal profile"
+        ),
+    )
+    parser.add_argument(
+        "--timing-assembly-id",
+        help=(
+            "stable builder/deployment identity for the physical sensing head; required "
+            "to match per-build calibrated timing artifacts"
+        ),
+    )
+    parser.add_argument(
         "--tof-time-offset-ms",
         type=float,
-        default=0.0,
+        default=None,
         help=(
-            "explicit offset added to protocol mcu_ready_us before attitude interpolation; "
-            "default 0.0 ms"
+            "explicit highest-precedence offset added to protocol mcu_ready_us before "
+            "attitude interpolation; reported as an override, not as calibration"
         ),
     )
     parser.add_argument(
@@ -195,12 +219,26 @@ def main() -> int:
         )
         boresight_path = Path(args.boresight_artifact)
         boresight = _load_boresight(boresight_path)
+        timing_artifact_path = Path(args.timing_artifact) if args.timing_artifact else None
+        timing_artifact = (
+            tof_timing.load_artifact(timing_artifact_path)
+            if timing_artifact_path is not None
+            else None
+        )
+        timing_resolution = tof_timing.resolve_tof_timing(
+            stats.last_info,
+            tuple(stats.protocol_versions),
+            mode=args.timing_mode,
+            assembly_id=args.timing_assembly_id,
+            artifact=timing_artifact,
+            explicit_offset_ms=args.tof_time_offset_ms,
+        )
         result = wall.evaluate_wall_stability(
             tof_grids,
             samples,
             orientation_run,
             boresight.rotation_body_from_tof,
-            tof_time_offset_ms=args.tof_time_offset_ms,
+            tof_time_offset_ms=timing_resolution.effective_offset_ms,
             min_valid_zones=args.min_valid_zones,
             max_plane_rms_mm=args.max_plane_rms_mm,
             max_plane_residual_mm=args.max_plane_residual_mm,
@@ -228,6 +266,7 @@ def main() -> int:
         ori.OrientationError,
         wall.WallOrientationError,
         imu_quality.ImuQualityError,
+        tof_timing.TofTimingError,
     ) as exc:
         parser.error(str(exc))
 
@@ -262,7 +301,19 @@ def main() -> int:
     print("  transform:        tof_optical -> device_body -> local_reference")
     print(f"  ToF geometry:     {geometry.GEOMETRY_PROFILE_ROLE} ({geometry.GEOMETRY_MODEL})")
     print("  ToF timestamp:    protocol mcu_ready_us")
-    print(f"  explicit offset:  {result.tof_time_offset_ms:+.3f} ms")
+    print(f"  timing mode:      {timing_resolution.mode}")
+    print(f"  timing role:      {timing_resolution.role}")
+    print(f"  timing source:    {timing_resolution.source}")
+    print(
+        "  timing profile:   {}".format(
+            timing_resolution.artifact_name or "(none)"
+        )
+    )
+    if timing_artifact_path is not None:
+        print(f"  timing artifact:  {timing_artifact_path}")
+    if args.timing_assembly_id:
+        print(f"  assembly id:      {args.timing_assembly_id}")
+    print(f"  effective offset: {result.tof_time_offset_ms:+.3f} ms")
     print(
         "  timing note:      exact VL53L5CX internal ranging instant is not exposed by v0.1"
     )
@@ -333,8 +384,10 @@ def main() -> int:
 
     print()
     print(
-        "Interpretation: no Phase 3 wall-normal acceptance threshold is frozen yet. "
-        "Use this result as physical evidence and inspect timing/motion correlations before promotion."
+        "Interpretation: timing role is '{}'. No Phase 3 wall-normal acceptance threshold "
+        "is frozen yet; retain calibration/profile provenance when comparing results.".format(
+            timing_resolution.role
+        )
     )
 
     failed = bool(decoder.frames_bad or stats.sequence_gaps or health_nonzero)
