@@ -32,8 +32,9 @@ Develop a small, inexpensive, RGB-free sensing module that combines sparse activ
 - Two independent continuous wall captures validate the full `tof_optical -> device_body -> local_reference` rotation chain.
 - Effective ToF/IMU timing is represented by a versioned quick-start/calibrated resolver rather than a universal constant; the reference assembly has a scoped calibrated `-24 ms` artifact.
 - An empirical executable Phase 3 reference wall gate is frozen from the worse of the two compensated wall runs with explicit margin.
+- Both independent continuous wall captures pass that executable gate using the calibrated boresight and timing artifacts.
 
-**Current focus: finish the executable Phase 3 gate replay, then add orientation-aware ToF geometry/viewing.**
+**Current focus: orientation-aware ToF geometry/viewing, then translation-aware work.**
 
 ## Non-negotiable design principles
 
@@ -147,7 +148,7 @@ The September 2026 reference assembly independently reproduced a broad `-20` to 
 | 2. Raw viewer + nominal sparse geometry | **DONE on reference path** | Real wall/object captures project with the documented orientation/depth convention. |
 | 2A. Optional ToF intrinsic calibration | **IMPLEMENTED / NOT YET PHYSICALLY PROMOTED** | Repeatable per-device geometry profile with held-out validation/provenance. |
 | 2B. ToF/body rotational boresight | **DONE / REFERENCE ARTIFACT PROMOTED** | Guided P0-P5 workflow, held-out P5 validation, artifact generation/provenance and merged documentation. |
-| 3. Orientation | **REFERENCE WALL GATE FROZEN / FINAL LOCAL REPLAY NEXT** | Calibrated replay passes the executable reference wall gate with clean health, adequate motion and quantified wall-normal bounds. |
+| 3. Orientation | **REFERENCE GATE PASSED** | Two independent calibrated continuous wall captures pass the executable reference wall gate with clean health, adequate motion and quantified wall-normal bounds. |
 | 4. Full calibration suite | **PARTIAL** | Versioned timing/intrinsic/extrinsic artifacts are reproducible and portable, including magnetic and any required rigid translation calibration. |
 | 5. Known-pose scanner | **PLANNED** | Controlled motion produces consistent geometry. |
 | 6. Freehand local odometry | **RESEARCH / PLANNED** | Quantified drift on repeatable trajectories with uncertainty. |
@@ -156,11 +157,11 @@ The September 2026 reference assembly independently reproduced a broad `-20` to 
 | 9. Compact sensor node | **PLANNED** | Smaller MCU/transport options retain data integrity. |
 | 10. Multi-ToF / wearable variants | **FUTURE** | Additional sensors measurably improve coverage/robustness. |
 
-## Immediate work package: Phase 3 orientation
+## Immediate work package: orientation-aware geometry
 
-Detailed plan: [`orientation-estimation.md`](orientation-estimation.md). Normative attitude semantics: [`attitude-conventions.md`](attitude-conventions.md). Physical evidence: [`validation/orientation-reference-rig-2026-09.md`](validation/orientation-reference-rig-2026-09.md).
+Detailed orientation plan: [`orientation-estimation.md`](orientation-estimation.md). Normative attitude semantics: [`attitude-conventions.md`](attitude-conventions.md). Physical evidence: [`validation/orientation-reference-rig-2026-09.md`](validation/orientation-reference-rig-2026-09.md).
 
-Completed:
+Completed reference-orientation work:
 
 1. freeze scalar-first Hamilton attitude conventions;
 2. implement timestamp-driven six-axis gyro+gravity orientation replay;
@@ -170,7 +171,8 @@ Completed:
 6. measure repeatable effective ToF/IMU timing alignment;
 7. implement quick-start/calibrated timing resolver and per-build artifact;
 8. reproduce both compensated wall results through the calibrated resolver;
-9. freeze an empirical reference wall gate.
+9. freeze an empirical reference wall gate;
+10. replay both retained wall captures through `host/python/validate_phase3_wall.py` — both PASS.
 
 Frozen gate:
 
@@ -187,10 +189,10 @@ start/end wall-normal delta:   <= 1.0 deg
 
 Next:
 
-1. replay both retained wall captures through `host/python/validate_phase3_wall.py` and record PASS/FAIL;
-2. add orientation-aware ToF viewing/projection;
+1. add orientation-aware ToF viewing/projection by composing calibrated `tof_optical -> device_body -> local_reference` transforms at each ToF observation time;
+2. replay the retained wall captures through that representation and verify static geometry remains stable;
 3. then tackle magnetic heading — physically map `mag_sensor -> device_body`, calibrate hard/soft iron, characterize disturbances and add confidence-gated heading correction;
-4. only after orientation is stable, proceed to translation/6DoF pose, known-pose scanning and freehand odometry.
+4. only after orientation-aware geometry is stable, proceed to translation/6DoF pose, known-pose scanning and freehand odometry.
 
 ## Testing strategy
 
@@ -219,7 +221,7 @@ Next:
 - the exact reference-rig `rangeweave.tof-body-rotation` artifact is promoted with provenance;
 - persistent gyro+gravity orientation has five hold-move-hold regression cases plus two continuous wall validations;
 - the reference assembly's effective ToF timing is stored as a scoped calibrated artifact rather than a model constant;
-- the empirical Phase 3 wall gate is documented and executable.
+- both independent reference wall captures pass the frozen executable Phase 3 wall gate.
 
 ### Experimental / not yet generalized
 
