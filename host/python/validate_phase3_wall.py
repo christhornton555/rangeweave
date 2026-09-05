@@ -18,6 +18,40 @@ def _status(ok: bool) -> str:
     return "PASS" if ok else "FAIL"
 
 
+def _stream_health_failures(decoder: object, stats: object) -> tuple[str, ...]:
+    """Return reasons a capture cannot claim clean stream/health integrity.
+
+    The executable Phase 3 gate is deliberately fail-closed: missing STATUS
+    coverage or unavailable health deltas are not equivalent to observed-zero
+    health counters.
+    """
+
+    failures: list[str] = []
+    frames_bad = int(getattr(decoder, "frames_bad", 0))
+    semantic_errors = int(getattr(stats, "semantic_errors", 0))
+    sequence_gaps = int(getattr(stats, "sequence_gaps", 0))
+    record_counts = getattr(stats, "record_counts", {})
+    status_count = int(record_counts.get("STATUS", 0))
+    health_deltas = dict(stats.health_deltas())
+
+    if frames_bad:
+        failures.append(f"decoder bad frames: {frames_bad}")
+    if semantic_errors:
+        failures.append(f"semantic decode errors: {semantic_errors}")
+    if sequence_gaps:
+        failures.append(f"sequence gaps: {sequence_gaps}")
+    if status_count < 2:
+        failures.append(f"STATUS records: {status_count} < 2")
+    if not health_deltas:
+        failures.append("health deltas unavailable")
+    else:
+        for name, delta in sorted(health_deltas.items()):
+            if int(delta) != 0:
+                failures.append(f"health delta {name}: {int(delta)}")
+
+    return tuple(failures)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -90,10 +124,8 @@ def main() -> int:
     ) as exc:
         parser.error(str(exc))
 
-    health_nonzero = {
-        name: delta for name, delta in stats.health_deltas().items() if int(delta) != 0
-    }
-    stream_ok = not decoder.frames_bad and not stats.sequence_gaps and not health_nonzero
+    stream_failures = _stream_health_failures(decoder, stats)
+    stream_ok = not stream_failures
     gyro_ok = not range_usage.rejected
 
     usable_ok = assessment.usable_fraction >= gate.MIN_USABLE_FRACTION
@@ -156,9 +188,12 @@ def main() -> int:
         "Scope: empirical calibrated reference-path acceptance gate; not a universal "
         "sensor-model or cross-unit performance specification."
     )
-    if assessment.failures:
-        for failure in assessment.failures:
-            print(f"  failure: {failure}")
+    for failure in stream_failures:
+        print(f"  failure: {failure}")
+    if not gyro_ok:
+        print("  failure: configured gyro range rejected by utilisation gate")
+    for failure in assessment.failures:
+        print(f"  failure: {failure}")
 
     return 0 if passed else 1
 
