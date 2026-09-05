@@ -14,7 +14,7 @@ Start here:
 - [Coordinate frames](coordinate-frames.md) - frozen optical/body conventions and current local/world-frame status.
 - [Validation](validation/README.md) - reference self-test evidence and reproduction reporting.
 - [Boresight physical evidence](validation/boresight-reference-rig-2026-09.md) - reference-rig axis, gyro-range, settling, P0-P5 and held-out-validation summary.
-- [Phase 3 orientation physical evidence](validation/orientation-reference-rig-2026-09.md) - two continuous wall captures, calibrated timing-artifact replay and the empirical reference wall gate.
+- [Phase 3 orientation physical evidence](validation/orientation-reference-rig-2026-09.md) - two continuous wall captures, calibrated timing-artifact replay and executable PASS evidence under the empirical reference wall gate.
 - [Calibration artifacts](../calibration/README.md) - generated per-device boresight/timing artifacts and provenance policy.
 - [Architecture](architecture.md) - layer boundaries and portability contract.
 - [Protocol](protocol.md) - packet/record requirements and protocol status.
@@ -30,9 +30,11 @@ Start here:
 
 The acquisition/protocol/capture path, nominal sparse geometry and reference-rig ToF/body rotational boresight are complete on the reference stack. The exact boresight artifact is promoted under `calibration/`.
 
-Phase 3 orientation is active. Project-owned attitude/quaternion conventions are frozen; the deterministic gyro+gravity estimator has passed five retained hold-move-hold regressions and two independent continuous rotation-in-place wall captures. Both captures reproduce their calibrated `-24 ms` timing result through the versioned per-build timing resolver rather than a hard-coded offset.
+The first gravity-referenced Phase 3 reference-orientation gate is now satisfied. Project-owned attitude/quaternion conventions are frozen; the deterministic gyro+gravity estimator passed five retained hold-move-hold regressions and two independent continuous rotation-in-place wall captures. Both captures reproduce their calibrated `-24 ms` timing result through the versioned per-build timing resolver rather than a hard-coded offset, and both pass the same executable wall gate.
 
-An empirical Phase 3 reference wall gate is now encoded and documented: clean stream/health, gyro-range PASS, at least 95% usable wall frames, at least 20 deg orientation excursion, RMS <= 1.0 deg, p95 <= 2.0 deg, max <= 5.0 deg and start/end delta <= 1.0 deg. These are project validation bounds derived from the reference evidence, not universal cross-unit sensor specifications. The next step is replaying both retained wall captures through the executable gate before proceeding to orientation-aware ToF geometry/viewing.
+The frozen reference wall gate requires clean stream/health, gyro-range PASS, at least 95% usable wall frames, at least 20 deg orientation excursion, RMS <= 1.0 deg, p95 <= 2.0 deg, max <= 5.0 deg and start/end delta <= 1.0 deg. These are project validation bounds derived from the reference evidence, not universal cross-unit sensor specifications.
+
+The next development frontier is orientation-aware ToF geometry/viewing: rotate calibrated ToF rays/points from `tof_optical` through `device_body` into `local_reference`, then verify the retained static-wall geometry remains stable in that representation before translation/6DoF work begins.
 
 ## Calibration terminology
 
