@@ -2,7 +2,7 @@
 
 **Status:** Phase 3 is the active estimation layer. The acquisition/timing path, `imu_sensor -> device_body` mapping, ToF geometry convention and reference-rig `tof_optical -> device_body` rotational boresight are already validated and provide the inputs this layer needs.
 
-The project-owned attitude conventions are frozen in [`attitude-conventions.md`](attitude-conventions.md). The deterministic Python gyro+gravity orientation core, replay inspector and continuous fixed-wall validator are implemented and now have physical reference-rig evidence.
+The project-owned attitude conventions are frozen in [`attitude-conventions.md`](attitude-conventions.md). The deterministic Python gyro+gravity orientation core has now passed the reference-rig hold-move-hold regressions and two independent continuous rotation-in-place wall validations using calibrated ToF/body boresight and calibrated ToF/IMU timing alignment.
 
 ## Goal
 
@@ -21,7 +21,7 @@ The first success criterion is deliberately rotation-only: when the sensing head
 - short-baseline gyro integration with independent endpoint gravity closure;
 - current +/-500 deg/s gyro configuration and range-utilisation checks;
 - versioned `rangeweave.tof-body-rotation` calibration artifact for the reference sensing head;
-- versioned `rangeweave.tof-time-alignment` timing/profile resolver with quick-start and calibrated modes;
+- versioned `rangeweave.tof-time-alignment` resolver supporting quick-start and calibrated modes;
 - ToF plane/ray geometry in the frozen `tof_optical` frame;
 - canonical capture/replay so estimator development can be performed offline before live use.
 
@@ -29,7 +29,7 @@ The first success criterion is deliberately rotation-only: when the sensing head
 
 ### 3A. Freeze attitude conventions — IMPLEMENTED
 
-The reference path now defines and golden-tests:
+The reference path defines and golden-tests:
 
 - quaternion component order: scalar-first `(w, x, y, z)`;
 - Hamilton multiplication;
@@ -42,9 +42,9 @@ The reference path now defines and golden-tests:
 
 These conventions are project-owned and must be converted explicitly at Python/Android/graphics/robotics boundaries. See [`attitude-conventions.md`](attitude-conventions.md).
 
-### 3B. Six-axis orientation baseline — IMPLEMENTED CANDIDATE
+### 3B. Six-axis orientation baseline — IMPLEMENTED / PHYSICALLY VALIDATED ON REFERENCE RIG
 
-`host/python/rangeweave_orientation.py` provides a timestamp-driven gyro + accelerometer baseline and `host/python/inspect_orientation.py` replays it on canonical captures.
+`host/python/rangeweave_orientation.py` provides the timestamp-driven gyro + accelerometer baseline and `host/python/inspect_orientation.py` replays it on canonical captures.
 
 Current properties:
 
@@ -57,11 +57,9 @@ Current properties:
 - keeps estimator state separate from permanent calibration artifacts;
 - does not use the magnetometer.
 
-The proportional gravity gain and confidence behaviour remain engineering defaults under physical validation rather than universal tuning constants.
+### 3C. Rotation-in-place validation — REFERENCE GATE FROZEN
 
-### 3C. Rotation-in-place validation — PHYSICAL EVIDENCE COMPLETE; BOUNDS PENDING
-
-The first regression level is complete: all five retained clean hold-move-hold boresight motions have been replayed through the persistent estimator and compared with the already validated short-baseline relative-rotation estimator.
+All five retained clean hold-move-hold boresight motions replay in sub-degree start/end agreement with the already validated short-baseline relative-rotation estimator:
 
 | motion | trusted relative angle | gravity closure | persistent-estimator delta |
 |---|---:|---:|---:|
@@ -71,46 +69,39 @@ The first regression level is complete: all five retained clean hold-move-hold b
 | M4 | 23.322 deg | 0.745 deg | 0.736 deg |
 | M5 | 24.295 deg | 0.510 deg | 0.859 deg |
 
-All five captures had clean decoder/sequence/health status and acceptable +/-500 deg/s range utilisation. Across varied real motions the persistent estimator remained in sub-degree start/end agreement with the trusted relative estimator.
-
-The continuous wall-normal validator then tested the full chain:
+Two independent continuous wall captures then exercised the full chain:
 
 ```text
 ToF normal -> R_body_from_tof -> estimated local/reference orientation
 ```
 
-on two independent 30 s multi-axis rotation-in-place captures against a fixed wall.
+The reference rig's effective ToF timing alignment was measured from both runs rather than assumed. Both scans showed the same broad `-20` to `-28 ms` optimum, with `-24 ms` the lowest-RMS 2 ms grid point. That value is stored only as the calibrated timing artifact for `assembly_id=reference-rig-2026-09`; it is not a universal VL53L5CX constant.
 
-At zero explicit ToF timing compensation:
+Calibrated results:
 
-| capture | max excursion | residual RMS | p95 | max | start/end delta |
-|---|---:|---:|---:|---:|---:|
-| wall 1 | 38.503 deg | 0.855 deg | 1.825 deg | 3.829 deg | 0.644 deg |
-| wall 2 | 28.412 deg | 0.747 deg | 1.486 deg | 2.352 deg | 0.150 deg |
+| capture | excursion | usable | RMS | p95 | max | start/end |
+|---|---:|---:|---:|---:|---:|---:|
+| wall 1 | 38.503 deg | 443/452 (98.0%) | 0.776 deg | 1.664 deg | 3.530 deg | 0.703 deg |
+| wall 2 | 28.412 deg | 452/453 (99.8%) | 0.637 deg | 1.222 deg | 1.859 deg | 0.151 deg |
 
-Both independently reproduce sub-degree RMS and sub-degree start/end stability.
+Both runs reproduced the same values through the calibrated timing-artifact resolver without supplying `-24 ms` numerically.
 
-#### ToF timing evidence
+The frozen empirical **Phase 3 reference wall gate** is:
 
-Protocol v0.1 records `mcu_ready_us` when software observes VL53L5CX data-ready, not the exact sensor-internal ranging instant. Independent exploratory scans on both wall captures reproduce the same broad optimum around `-20` to `-28 ms`, with `-24 ms` the lowest-RMS 2 ms grid point in both captures.
+```text
+stream/health integrity:       clean
+configured gyro range:         PASS
+usable wall observations:      >= 95%
+orientation excursion:         >= 20 deg
+wall-normal residual RMS:      <= 1.0 deg
+wall-normal residual p95:      <= 2.0 deg
+wall-normal residual maximum:  <= 5.0 deg
+start/end wall-normal delta:   <= 1.0 deg
+```
 
-At `-24 ms`:
+These are project validation bounds derived from the reference evidence, not universal cross-unit sensor specifications. The p95/RMS bounds carry most of the stability meaning; the looser maximum bound prevents one noisy ToF frame from making the gate brittle. Independent builds may motivate later evidence-based revisions, but old validation evidence must retain the gate version used at the time.
 
-| capture | residual RMS | p95 | max | start/end delta |
-|---|---:|---:|---:|---:|
-| wall 1 | 0.776 deg | 1.664 deg | 3.530 deg | 0.703 deg |
-| wall 2 | 0.637 deg | 1.222 deg | 1.859 deg | 0.151 deg |
-
-The timing compensation improves the moving-frame residual distribution while stationary start/end consistency remains essentially unchanged.
-
-`-24 ms` is **not** a universal VL53L5CX constant. The effective observation-time offset can depend on the assembled sensing head, producer firmware/driver path, operating mode/timing settings and timestamp semantics. `host/python/rangeweave_tof_timing.py` therefore resolves timing through two first-class modes:
-
-- **quick-start**: matched `nominal-fallback` profile when available, otherwise conservative `0 ms` with visible `uncalibrated` status;
-- **calibrated**: a matching per-build `rangeweave.tof-time-alignment` artifact with an explicit physical `assembly_id` and configuration fingerprint.
-
-The retained reference-rig artifact is [`../calibration/tof-time-alignment-reference-rig-20260905.json`](../calibration/tof-time-alignment-reference-rig-20260905.json). See [`timing-calibration.md`](timing-calibration.md).
-
-The remaining 3C task is to replay the two reference wall captures through the artifact resolver and freeze conservative acceptance gates from the worse compensated run rather than the best case.
+The executable gate is `host/python/validate_phase3_wall.py`; the pure numeric contract is `host/python/rangeweave_phase3_gate.py`. Full evidence is in [`validation/orientation-reference-rig-2026-09.md`](validation/orientation-reference-rig-2026-09.md).
 
 ### 3D. Magnetometer integration, later
 
@@ -126,9 +117,9 @@ Before enabling magnetic heading:
 
 The six-axis estimator must remain useful when magnetic heading is unavailable or untrusted.
 
-### 3E. Orientation-aware ToF geometry
+### 3E. Orientation-aware ToF geometry — NEXT AFTER EXECUTABLE GATE REPLAY
 
-Once the attitude layer passes rotation-in-place validation:
+Once both retained wall captures reproduce PASS through the final executable gate:
 
 - rotate calibrated ToF rays/points from `tof_optical` through `device_body` into the local/reference frame;
 - add an orientation-aware point-cloud/plane viewer;
@@ -144,22 +135,24 @@ Phase 3 does **not** yet claim:
 - freehand odometry or SLAM;
 - loop closure;
 - globally referenced yaw without a validated heading source;
-- Android parity.
+- Android parity;
+- identical calibration values or residual distributions across independently assembled units.
 
 ## Exit gate
 
-Phase 3 is complete when a replayable orientation estimator with frozen frame/quaternion conventions can rotate real ToF observations into a local reference frame such that rotation-in-place of the physical sensing head keeps static geometry stable within quantified bounds, with estimator confidence/failure visible.
+The first gravity-referenced Phase 3 orientation gate is satisfied when a calibrated replayable orientation path passes the executable reference wall validation with frozen frame/quaternion conventions, clean acquisition health and visible calibration provenance.
 
-Magnetometer-aided heading may be a later Phase 3 extension; it is not required for the first gravity-referenced rotation-only exit gate.
+Magnetometer-aided heading may be a later Phase 3 extension; it is not required for this first gravity-referenced rotation-only gate.
 
 ## Immediate implementation order
 
 1. ~~write/freeze the attitude/quaternion convention and golden composition tests~~ — done;
 2. ~~implement the timestamp-driven six-axis orientation core and replay inspector~~ — done;
-3. ~~replay existing boresight motion captures as regression evidence~~ — M1-M5 complete, all sub-degree start/end delta;
+3. ~~replay existing boresight motion captures as regression evidence~~ — M1-M5 complete;
 4. ~~implement continuous wall-normal validation tooling~~ — done;
-5. ~~make independent continuous multi-axis rotation-in-place wall captures against a static wall~~ — two complete;
-6. ~~measure and represent ToF timing alignment without hard-coding one device's value~~ — resolver + reference artifact implemented;
-7. **replay both wall captures through calibrated artifact resolution and freeze conservative empirical acceptance bounds**;
-8. add orientation-aware ToF geometry/viewing;
-9. then begin magnetometer mapping/calibration and later full 6DoF pose work.
+5. ~~capture independent continuous multi-axis rotation-in-place wall sequences~~ — two complete;
+6. ~~measure and represent ToF/IMU timing alignment without hard-coding a sensor-model constant~~ — reference per-build artifact implemented;
+7. ~~freeze empirical reference wall acceptance bounds~~ — done;
+8. **replay both retained wall captures through `validate_phase3_wall.py` and record PASS/FAIL**;
+9. add orientation-aware ToF geometry/viewing;
+10. then begin magnetometer mapping/calibration and later full 6DoF pose work.
