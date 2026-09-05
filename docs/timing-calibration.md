@@ -36,7 +36,7 @@ A calibrated artifact contains:
 
 Protocol v0.1 does not expose a stable physical ToF-module serial, so `assembly_id` is intentionally external to the wire protocol. This prevents a calibrated artifact for one physical build being silently accepted on another build whose electronic configuration happens to look identical.
 
-A calibrated artifact is rejected if any fingerprinted field no longer matches. Material firmware, source-profile, ToF-mode, protocol or assembly changes therefore require either a new calibration or an explicit user override.
+A calibrated artifact is rejected if any fingerprinted field no longer matches. Material firmware, source-profile, ToF-mode, protocol or assembly changes therefore require either a new calibration or an explicit user override. Replacing the ToF module, IMU, controller, or another timing-critical part of the sensing head should be treated as a new calibration identity even if the replacement reports the same model/configuration strings; update the deployment-managed `assembly_id` (or otherwise invalidate the old artifact) and recalibrate rather than silently inheriting the previous unit's timing value.
 
 ## Runtime precedence
 
