@@ -43,6 +43,12 @@ Current acquisition configuration:
 
 `STREAM_INFO` reports the actual runtime register/configuration bytes. Host analysis must read those bytes rather than assuming a scale.
 
+### Phase 4 magnetometer cadence note
+
+The currently validated acquisition build configures the LIS3MDL for 20 Hz continuous conversion but services/records MAG at 10 Hz. Phase 4 replay found that this causes the LIS3MDL output overrun flag on nearly every retained MAG record because an unread intermediate conversion is overwritten before the next producer read.
+
+The retained XYZ samples are still coherent because block-data update is enabled, but this cadence mismatch is **not acceptable for new magnetometer calibration or heading-fusion evidence**. PR #14 therefore treats a producer cadence correction as mandatory before collecting the purpose-made `mag_sensor -> device_body` mapping sequence. Any such scheduler change must be physically smoke-tested for MAG, IMU/FIFO, ToF and transport health before it replaces this validated baseline.
+
 ### Why the gyro is now +/-500 deg/s
 
 The earlier acquisition configuration used `CTRL2_G = 0x40` (+/-250 deg/s), matching the original diagnostic baseline. During physical ToF/body boresight testing, one legitimate mixed-axis motion reached about 267 deg/s on the mapped body-X axis and produced a large gyro/gravity closure failure.
