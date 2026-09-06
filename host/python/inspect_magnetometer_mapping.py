@@ -155,7 +155,6 @@ def main() -> int:
     best = distinct[0]
     second = distinct[1] if len(distinct) > 1 else None
     overrun_fraction = mag_summary.overrun_count / max(1, mag_summary.sample_count)
-    gyro_pass = not gyro_usage.rejected
 
     print("Rangeweave diagnostic magnetometer/body mapping search")
     print(f"  capture:          {packets}")
@@ -166,7 +165,7 @@ def main() -> int:
     print(f"  orientation excursion: {_orientation_excursion_deg(orientation_run):.3f} deg")
     print(
         "  gyro range:       {} (peak X {:.1f}% Y {:.1f}% Z {:.1f}%)".format(
-            "PASS" if gyro_pass else "FAIL",
+            "PASS" if not gyro_usage.rejected else "FAIL",
             100.0 * gyro_usage.peak_fraction[0],
             100.0 * gyro_usage.peak_fraction[1],
             100.0 * gyro_usage.peak_fraction[2],
@@ -176,11 +175,7 @@ def main() -> int:
     print()
     print("Magnetic acquisition caveat")
     print(f"  sensor ODR:       {config.output_data_rate_hz:.3f} Hz")
-    print(
-        "  recorded rate:    {}".format(
-            "n/a" if mag_summary.observed_rate_hz is None else f"{mag_summary.observed_rate_hz:.3f} Hz"
-        )
-    )
+    print(f"  recorded rate:    {mag_summary.observed_rate_hz:.3f} Hz")
     print(
         f"  overrun records:  {mag_summary.overrun_count} / {mag_summary.sample_count} ({100.0 * overrun_fraction:.1f}%)"
     )
@@ -211,7 +206,7 @@ def main() -> int:
     print()
     print("Best candidate")
     print(f"  mapping:          {best.mapping.name}")
-    print("  R_body_from_mag:")
+    print(f"  R_body_from_mag:")
     for row in best.mapping.rotation_body_from_mag:
         print("                   [{:+.0f} {:+.0f} {:+.0f}]".format(*row))
     print(f"  best offset:      {best.time_offset_ms:+.1f} ms")
@@ -224,6 +219,10 @@ def main() -> int:
         if best.direction_rms_deg > 1.0e-9:
             print(f"  second/best:      {second.direction_rms_deg / best.direction_rms_deg:.3f}x")
 
+    boundary_hit = abs(best.time_offset_ms - offsets[0]) < 1.0e-9 or abs(best.time_offset_ms - offsets[-1]) < 1.0e-9
+    if boundary_hit:
+        print("  timing warning:   best offset is on the scan boundary; extend the range before interpreting timing")
+
     print()
     print("Interpretation")
     print("  - this is a diagnostic ranking, not a promoted mag_sensor -> device_body calibration")
@@ -232,7 +231,7 @@ def main() -> int:
     print("  - the timing offset is exploratory because protocol v0.1 timestamps the MCU read bracket, not the LIS3MDL conversion instant")
     print("  - a clear winner can guide the purpose-made physical axis test; ambiguous rankings mean this capture lacks observability")
 
-    return 0 if _stream_clean(decoder, stats) and gyro_pass else 1
+    return 0 if _stream_clean(decoder, stats) and not gyro_usage.rejected else 1
 
 
 if __name__ == "__main__":
