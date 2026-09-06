@@ -45,17 +45,11 @@ Reference host tools:
 - `host/python/rangeweave_magnetometer.py`
 - `host/python/inspect_magnetometer.py`
 
-Reference replay evidence from `capture_20260905_005203Z_phase3-rotation-in-place-wall-2`:
+### Reference M0 evidence
 
-- 301 MAG samples over 30.000 s;
-- protocol/producer stream health PASS with zero decoder/semantic/sequence/health-counter faults;
-- recorded LIS3MDL config `74 00 00 0C 40` = +/-4 gauss, 6842 LSB/gauss, 20 Hz sensor ODR, ultra-high-performance XY/Z, continuous conversion, BDU enabled;
-- producer records MAG at 10.000 Hz with ~329 us median read duration and no retries;
-- 297/301 MAG records carry the LIS3MDL overrun flag because the free-running sensor converts at 20 Hz while the producer records at 10 Hz. Intermediate conversions are overwritten; BDU keeps the recorded XYZ triplet coherent. Treat this as a cadence/timing quality issue rather than protocol corruption;
-- native uncalibrated field ranges: X -45.09..-13.74 uT, Y -19.42..+6.97 uT, Z -41.95..-33.85 uT;
-- field magnitude spans 39.98..60.94 uT, median 49.66 uT.
+`capture_20260905_005203Z_phase3-rotation-in-place-wall-2` produced 301 MAG samples over 30.000 s with clean protocol/producer health, no retries, and a recorded LIS3MDL configuration of `74 00 00 0C 40` (+/-4 gauss, 20 Hz sensor ODR, ultra-high-performance XY/Z, continuous conversion, BDU enabled). The producer recorded at 10.000 Hz, so 297/301 records carried the LIS3MDL overrun flag: unread intermediate 20 Hz conversions were being overwritten before the 10 Hz producer read. The retained XYZ triplets remain coherent because BDU is enabled, but this cadence mismatch must be corrected before new calibration evidence or heading fusion is accepted.
 
-The 20 Hz sensor / 10 Hz producer mismatch must be resolved before magnetic heading fusion or final calibration evidence is frozen.
+The uncalibrated native field magnitude in that capture ranged from 39.98 to 60.94 uT (median 49.66 uT). This is diagnostic only and is not yet treated as an Earth-field gate.
 
 ## M1 — physically establish `mag_sensor -> device_body`
 
@@ -74,23 +68,31 @@ The mapping experiment should:
 
 Because hard/soft-iron errors can bias candidate scoring, mapping evidence and magnetic calibration may need to be iterated rather than treated as perfectly independent one-shot fits.
 
-Exploratory replay of `capture_20260905_005203Z_phase3-rotation-in-place-wall-2` with all 24 proper signed-permutation mappings and a constant MAG timing scan over `-60..0 ms` produced:
+### Retained wall-capture mapping experiments
+
+Two pre-existing Phase 3 wall captures were scanned over all 24 proper signed-permutation mappings. They are useful as diagnostics but **do not reproduce the same winning mapping**, so they are explicitly not accepted as M1 calibration evidence.
+
+Wall capture 2 (`capture_20260905_005203Z_phase3-rotation-in-place-wall-2`, 28.412 deg orientation excursion) selected:
 
 ```text
-best candidate:
-  body X=+mag Z
-  body Y=-mag X
-  body Z=-mag Y
-
-best searched offset: -60 ms (scan boundary)
-direction RMS:         5.643 deg
-direction p95:        11.124 deg
-vector RMS:            6.439 uT
-second-best RMS:       6.737 deg
-second/best:           1.194x
+body X = +mag Z
+body Y = -mag X
+body Z = -mag Y
 ```
 
-This result is **not sufficient to promote a mapping**. The winner is only modestly separated from the alternatives, absolute residuals remain several degrees, and the best timing value is pinned to the negative boundary of the initial search. The next replay step is therefore to extend the timing search before using this candidate to guide a purpose-made physical axis test.
+with a broad timing optimum near -84 ms, direction RMS 5.636 deg, p95 11.105 deg, and second/best RMS ratio 1.195x.
+
+Wall capture 1 (`capture_20260905_000517Z_phase3-rotation-in-place-wall`, 38.503 deg excursion) instead selected:
+
+```text
+body X = -mag Y
+body Y = +mag Z
+body Z = -mag X
+```
+
+with its best result at the +0 ms edge of the searched -160..0 ms range, direction RMS 6.095 deg, p95 11.830 deg, and second/best ratio 1.299x. The capture-2 candidate ranked second at 7.920 deg RMS.
+
+This disagreement is decisive evidence that the retained wall motions, uncalibrated field distortion and 20 Hz/10 Hz overrun timing are insufficient to identify `R_body_from_mag` reliably. Do not extend or tune these old captures further in search of a preferred mapping. The next M1 evidence must come from a purpose-made multi-axis capture after the magnetic acquisition cadence mismatch has been corrected.
 
 ## M2 — hard-iron and soft-iron calibration
 
@@ -140,6 +142,6 @@ Expected behaviour:
 - six-axis output remains available and explicitly labelled when heading is not trusted;
 - no global geographic heading/declination convention is claimed until separately frozen.
 
-## Current immediate test
+## Current immediate work
 
-Extend the existing mapping replay timing search on `capture_20260905_005203Z_phase3-rotation-in-place-wall-2`. This is still diagnostic only; no mapping or timing value is promoted from the replay.
+Correct the reference producer's magnetic acquisition cadence so the 20 Hz LIS3MDL output is not routinely overwritten by a 10 Hz read schedule. After that producer change has its own smoke/health evidence, collect a new purpose-made M1 capture with a stationary initialization period followed by broad, slow rotation about multiple body axes in a magnetically quiet setup. The old wall captures remain retained diagnostics only.
