@@ -45,6 +45,18 @@ Reference host tools:
 - `host/python/rangeweave_magnetometer.py`
 - `host/python/inspect_magnetometer.py`
 
+Reference replay evidence from `capture_20260905_005203Z_phase3-rotation-in-place-wall-2`:
+
+- 301 MAG samples over 30.000 s;
+- protocol/producer stream health PASS with zero decoder/semantic/sequence/health-counter faults;
+- recorded LIS3MDL config `74 00 00 0C 40` = +/-4 gauss, 6842 LSB/gauss, 20 Hz sensor ODR, ultra-high-performance XY/Z, continuous conversion, BDU enabled;
+- producer records MAG at 10.000 Hz with ~329 us median read duration and no retries;
+- 297/301 MAG records carry the LIS3MDL overrun flag because the free-running sensor converts at 20 Hz while the producer records at 10 Hz. Intermediate conversions are overwritten; BDU keeps the recorded XYZ triplet coherent. Treat this as a cadence/timing quality issue rather than protocol corruption;
+- native uncalibrated field ranges: X -45.09..-13.74 uT, Y -19.42..+6.97 uT, Z -41.95..-33.85 uT;
+- field magnitude spans 39.98..60.94 uT, median 49.66 uT.
+
+The 20 Hz sensor / 10 Hz producer mismatch must be resolved before magnetic heading fusion or final calibration evidence is frozen.
+
 ## M1 — physically establish `mag_sensor -> device_body`
 
 The mapping is assembly-specific. Do not promote a transform from package drawings or breakout-board assumptions alone.
@@ -61,6 +73,24 @@ The mapping experiment should:
 - remain diagnostic until the winner is independently reproduced.
 
 Because hard/soft-iron errors can bias candidate scoring, mapping evidence and magnetic calibration may need to be iterated rather than treated as perfectly independent one-shot fits.
+
+Exploratory replay of `capture_20260905_005203Z_phase3-rotation-in-place-wall-2` with all 24 proper signed-permutation mappings and a constant MAG timing scan over `-60..0 ms` produced:
+
+```text
+best candidate:
+  body X=+mag Z
+  body Y=-mag X
+  body Z=-mag Y
+
+best searched offset: -60 ms (scan boundary)
+direction RMS:         5.643 deg
+direction p95:        11.124 deg
+vector RMS:            6.439 uT
+second-best RMS:       6.737 deg
+second/best:           1.194x
+```
+
+This result is **not sufficient to promote a mapping**. The winner is only modestly separated from the alternatives, absolute residuals remain several degrees, and the best timing value is pinned to the negative boundary of the initial search. The next replay step is therefore to extend the timing search before using this candidate to guide a purpose-made physical axis test.
 
 ## M2 — hard-iron and soft-iron calibration
 
@@ -112,4 +142,4 @@ Expected behaviour:
 
 ## Current immediate test
 
-Run `inspect_magnetometer.py` on an existing retained capture first. This does not require a new hardware experiment and establishes whether the recorded reference-path MAG stream and configuration are suitable before designing the physical mapping capture.
+Extend the existing mapping replay timing search on `capture_20260905_005203Z_phase3-rotation-in-place-wall-2`. This is still diagnostic only; no mapping or timing value is promoted from the replay.
