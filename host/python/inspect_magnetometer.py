@@ -59,6 +59,19 @@ def _stream_clean(decoder, stats) -> bool:
     )
 
 
+def _cadence_note(summary, config) -> str:
+    rate = summary.observed_rate_hz
+    if rate is None:
+        return "UNKNOWN (insufficient samples)"
+    if summary.overrun_count and rate < 0.75 * config.output_data_rate_hz:
+        return (
+            "WARN (producer records slower than sensor ODR; unread conversions are being overwritten)"
+        )
+    if summary.overrun_count:
+        return "WARN (sensor reports output-register overwrite before some reads)"
+    return "PASS"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Inspect native LIS3MDL acquisition/configuration quality from a Rangeweave capture"
@@ -127,6 +140,7 @@ def main() -> int:
         print(f"  STATUS retries:   {retries_from_status}")
     print(f"  not-ready records:{summary.not_ready_count:>6}")
     print(f"  overrun records:  {summary.overrun_count:>6}")
+    print(f"  cadence status:   {_cadence_note(summary, config)}")
 
     print()
     print("Native mag_sensor field (uncalibrated)")
@@ -163,6 +177,8 @@ def main() -> int:
     print()
     print("Interpretation")
     print("  - values above are in the native mag_sensor frame; no body-axis mapping is assumed")
+    print("  - stream health PASS covers protocol/producer counters, not LIS3MDL output-register overruns")
+    print("  - an overrun means an unread conversion was overwritten; the recorded BDU-protected XYZ sample is still coherent")
     print("  - field magnitude is shown diagnostically, not accepted as an Earth-field/heading gate yet")
     print("  - hard-iron, soft-iron and environmental disturbance are not corrected")
     print("  - this inspector must not be used to claim magnetic heading accuracy")
