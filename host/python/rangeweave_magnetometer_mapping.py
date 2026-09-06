@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import permutations, product
 import math
+import statistics
 from typing import Sequence
 
 import rangeweave_extrinsics as ext
@@ -150,7 +151,7 @@ def score_aligned_vectors(
         time_offset_ms=float(time_offset_ms),
         sample_count=len(vectors_reference),
         mean_direction_reference=mean_direction,
-        direction_median_deg=float(__import__("statistics").median(residuals)),
+        direction_median_deg=float(statistics.median(residuals)),
         direction_rms_deg=math.sqrt(sum(value * value for value in residuals) / len(residuals)),
         direction_p95_deg=orientation_wall.percentile(residuals, 0.95),
         direction_max_deg=max(residuals),
