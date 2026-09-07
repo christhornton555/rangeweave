@@ -115,7 +115,7 @@ def main() -> int:
         )
     )
     parser.add_argument("calibration_capture", help="M1 calibration capture directory or packets.bin")
-    parser.add_argument("validation_capture", help="independent M2 validation capture directory or packets.bin")
+    parser.add_argument("validation_capture", help="independent repeat validation capture directory or packets.bin")
     parser.add_argument("--offset-min-ms", type=float, default=-60.0)
     parser.add_argument("--offset-max-ms", type=float, default=0.0)
     parser.add_argument("--offset-step-ms", type=float, default=2.0)
@@ -274,7 +274,7 @@ def main() -> int:
         "(independent transfer)"
     )
     print(
-        f"  M2 self-fit:       {_span(validation_self_summary):.3f} uT "
+        f"  validation self:   {_span(validation_self_summary):.3f} uT "
         "(diagnostic upper bound)"
     )
     print(
@@ -296,7 +296,7 @@ def main() -> int:
         validation_cross_mapping,
     )
     print()
-    _print_short_ranking("Validation capture, M2 self-centred", validation_self_mapping)
+    _print_short_ranking("Validation capture, self-centred", validation_self_mapping)
 
     print()
     print("Cross-capture consistency summary")
@@ -334,7 +334,7 @@ def main() -> int:
     print("Interpretation")
     print(
         "  - the transferred arm is the key independent test: its M1 hard-iron "
-        "centre is applied to M2 without refitting"
+        "centre is applied to the validation capture without refitting"
     )
     print(
         "  - agreement between calibration and transferred mapping winners, with "
@@ -345,7 +345,7 @@ def main() -> int:
         "a large delta points to environment/setup change, fit instability, or non-fixed distortion"
     )
     print(
-        "  - the M2 self-fit arm is diagnostic only; better self-fit performance "
+        "  - the validation self-fit arm is diagnostic only; better self-fit performance "
         "than transferred performance quantifies how much capture-specific correction remains"
     )
     print(
