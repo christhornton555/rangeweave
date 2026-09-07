@@ -1,10 +1,10 @@
 # Pico 2 W acquisition firmware
 
-**Status: hardware-validated Rangeweave v0.1 acquisition producer on the current reference stack.**
+**Status: Phase 4 hardware-validation candidate. The previous v0.1 acquisition producer remains the last fully hardware-validated reference baseline until the 40 Hz MAG-poll scheduler passes physical smoke testing.**
 
 This directory is separate from [`../diagnostics/reproducible_sensor_stack.py`](../diagnostics/reproducible_sensor_stack.py). The diagnostic is the builder/reproduction self-test; this acquisition firmware emits the binary [Rangeweave protocol v0.1](../../../protocol/spec-v0.1.md) stream consumed by host capture/replay tools.
 
-The protocol/packetizer path passes host-side conformance tests, and physical reference runs have demonstrated lossless steady-state USB streaming with zero measured sensor/FIFO/sequence/drop errors and VL53L5CX acquisition close to the configured 15 Hz.
+The protocol/packetizer path passes host-side conformance tests. Earlier physical reference runs demonstrated lossless steady-state USB streaming with zero measured sensor/FIFO/sequence/drop errors and VL53L5CX acquisition close to the configured 15 Hz. The Phase 4 scheduler change below must reproduce that health before it replaces the prior hardware-validated baseline.
 
 ## Files
 
@@ -22,10 +22,16 @@ Copy `main.py` last: once it starts, stdout becomes a binary stream and readable
 
 ## Current acquisition source profile
 
+`FIRMWARE_LABEL`:
+
+```text
+rangeweave-pico2w-acq-0.2
+```
+
 `SOURCE_PROFILE`:
 
 ```text
-pico2w-lsm6dsox-lis3mdl-vl53l5cx-8x8-15hz
+pico2w-lsm6dsox-lis3mdl20-poll40-vl53l5cx-8x8-15hz
 ```
 
 Current acquisition configuration:
@@ -36,12 +42,23 @@ Current acquisition configuration:
 - LSM6DSOX gyro `CTRL2_G = 0x44` (**104 Hz, +/-500 deg/s**);
 - BDU/IF_INC `CTRL3_C = 0x44`;
 - FIFO accel/gyro BDR `0x44`, FIFO/timestamp mode `0x46`;
-- FIFO serviced on the validated 20 ms host cadence;
-- LIS3MDL control bytes `74 00 00 0c 40`;
+- FIFO serviced on the previously validated 20 ms host cadence;
+- LIS3MDL control bytes `74 00 00 0c 40` = 20 Hz continuous conversion, +/-4 gauss, ultra-high-performance XY/Z, BDU enabled;
+- LIS3MDL status is polled every 25 ms (**40 Hz**) and a `MAG` record is emitted only when `ZYXDA` reports a fresh coherent XYZ conversion;
 - VL53L5CX 8x8 at 15 Hz;
 - LIS3MDL address fixed at `0x1E` by `ADM -> 3V3`.
 
 `STREAM_INFO` reports the actual runtime register/configuration bytes. Host analysis must read those bytes rather than assuming a scale.
+
+### Phase 4 magnetometer cadence correction
+
+The previous v0.1 acquisition build configured the LIS3MDL for 20 Hz continuous conversion but serviced/recorded MAG at 10 Hz. Phase 4 replay found that this caused the LIS3MDL output overrun flag on nearly every retained MAG record because an unread intermediate conversion was overwritten before the next producer read.
+
+The v0.2 candidate keeps the LIS3MDL itself at 20 Hz but polls its status at 40 Hz. Most polls therefore read only `STATUS_REG`; the six-byte XYZ registers are read and a protocol record is emitted only when fresh data are ready. This deliberately avoids phase-locking two independent 20 Hz clocks and should normally give each conversion two opportunities to be consumed before the next conversion can overwrite it.
+
+The old ToF/MAG scheduling guard was also changed. A 25 ms guard would permanently starve ToF when MAG itself is polled every 25 ms, so the candidate uses a 5 ms pre-MAG ToF guard and explicitly services an overdue MAG poll immediately after any ToF transfer that crosses a MAG deadline.
+
+This is a material producer-timing change. The firmware label and source profile were therefore advanced so existing per-build timing artifacts do **not** silently apply to new captures. In particular, the current reference-rig ToF `-24 ms` calibration must be revalidated for this producer before it is promoted for v0.2 captures.
 
 ### Why the gyro is now +/-500 deg/s
 
@@ -105,9 +122,12 @@ Pass criteria for the measured interval:
 - `bad frames = 0`;
 - `seq gaps = 0`;
 - expected record families (`IMU_BATCH`, `MAG`, `TOF_GRID`, `CLOCK_SYNC`, `STATUS`, `STREAM_INFO`) observed;
-- deltas for drops, FIFO structural/overrun errors and sensor/clock-sync errors remain zero.
+- deltas for drops, FIFO structural/overrun errors and sensor/clock-sync errors remain zero;
+- MAG output is close to the LIS3MDL's configured 20 Hz fresh-data rate rather than the old 10 Hz producer cadence;
+- LIS3MDL overrun records are zero or rare rather than present on nearly every sample;
+- VL53L5CX output remains close to its configured 15 Hz rather than being starved by the faster MAG polling.
 
-Approximate healthy 15-second counts on the reference unit were ~380 `IMU_BATCH`, ~150 `MAG`, ~225 `TOF_GRID`, ~15 `CLOCK_SYNC`, ~15 `STATUS` and one or two `STREAM_INFO` records. Treat these as sanity ranges, not protocol requirements.
+For the v0.2 candidate, a healthy 15-second capture should therefore contain roughly twice as many MAG records as the old ~150-count baseline, while IMU/ToF/clock/status families should remain in their previous sanity ranges. Treat counts as diagnostics, not protocol requirements; physical evidence decides whether this scheduler is promoted.
 
 For offline timing inspection:
 
@@ -131,7 +151,7 @@ Current host tooling can inspect the acquisition gyro configuration and physical
 py host/python/inspect_relative_rotation.py <capture>
 ```
 
-For the current reference rig, the physically validated mapping is:
+For the current reference rig, the physically validated IMU mapping is:
 
 ```text
 body X = -imu X
@@ -139,9 +159,9 @@ body Y = -imu Z
 body Z = -imu Y
 ```
 
-That mapping is assembly-specific and must not be copied to a differently mounted IMU without physical validation.
+That mapping is assembly-specific and must not be copied to a differently mounted IMU without physical validation. The LIS3MDL `mag_sensor -> device_body` mapping remains unpromoted pending Phase 4 M1 physical evidence.
 
-See [`../../../docs/boresight-calibration.md`](../../../docs/boresight-calibration.md) and [`../../../docs/validation/boresight-reference-rig-2026-09.md`](../../../docs/validation/boresight-reference-rig-2026-09.md).
+See [`../../../docs/boresight-calibration.md`](../../../docs/boresight-calibration.md), [`../../../docs/magnetometer-calibration.md`](../../../docs/magnetometer-calibration.md), and [`../../../docs/validation/boresight-reference-rig-2026-09.md`](../../../docs/validation/boresight-reference-rig-2026-09.md).
 
 ## Getting back to development mode
 

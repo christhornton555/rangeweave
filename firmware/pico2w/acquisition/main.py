@@ -1,4 +1,4 @@
-"""Rangeweave Pico 2 W acquisition firmware, hardware-validated v0.1 candidate.
+"""Rangeweave Pico 2 W acquisition firmware, hardware-validation v0.2 candidate.
 
 Successful operation produces binary Rangeweave protocol frames only. USB is merely the
 first transport adapter; sensor acquisition and packet semantics are kept independent.
@@ -23,11 +23,16 @@ from rw_sensors import (
 from rw_transport_usb import FrameQueue, UsbCdcTransport
 from rw_timing import LsmTickExtender
 
-FIRMWARE_LABEL = b"rangeweave-pico2w-acq-0.1"
-SOURCE_PROFILE = b"pico2w-lsm6dsox-lis3mdl-vl53l5cx-8x8-15hz"
+FIRMWARE_LABEL = b"rangeweave-pico2w-acq-0.2"
+SOURCE_PROFILE = b"pico2w-lsm6dsox-lis3mdl20-poll40-vl53l5cx-8x8-15hz"
 
-MAG_PERIOD_US = 100_000
+# The LIS3MDL remains configured for 20 Hz conversion. Poll status at 40 Hz so
+# each fresh conversion normally has two opportunities to be observed before the
+# next conversion can overwrite it. service_mag() emits a MAG record only when
+# ZYXDA says a fresh XYZ sample is ready.
+MAG_POLL_PERIOD_US = 25_000
 MAG_INITIAL_OFFSET_US = 5_000
+
 # Match the cadence already validated by the v0.5 diagnostic. The hardware FIFO
 # is the timing buffer; polling it twice as often only increases Python/I2C overhead.
 FIFO_SERVICE_PERIOD_US = 20_000
@@ -39,7 +44,10 @@ STATUS_PERIOD_US = 1_000_000
 STREAM_INFO_PERIOD_US = 10_000_000
 
 FIFO_MAG_GUARD_US = 3_000
-TOF_MAG_GUARD_US = 25_000
+# With a 25 ms MAG poll period, the old 25 ms ToF guard would permanently starve
+# ToF. Keep only a short pre-poll guard; if a ToF read crosses a MAG deadline,
+# the scheduler services MAG immediately afterwards.
+TOF_MAG_GUARD_US = 5_000
 CLOCK_SYNC_MAG_GUARD_US = 3_000
 
 IMU_BATCH_SAMPLES = 4
@@ -372,7 +380,7 @@ class Acquisition:
 
     def run(self):
         now_us = self.stack.clock.now_us()
-        next_mag_us = now_us + MAG_INITIAL_OFFSET_US
+        next_mag_poll_us = now_us + MAG_INITIAL_OFFSET_US
         next_fifo_us = now_us
         next_tof_poll_us = now_us
         next_sync_us = now_us + CLOCK_SYNC_INITIAL_US
@@ -384,16 +392,16 @@ class Acquisition:
         while True:
             now_us = self.stack.clock.now_us()
 
-            if now_us >= next_mag_us:
+            if now_us >= next_mag_poll_us:
                 self.service_mag()
-                next_mag_us += MAG_PERIOD_US
+                next_mag_poll_us += MAG_POLL_PERIOD_US
                 now_after = self.stack.clock.now_us()
-                if now_after - next_mag_us > MAG_PERIOD_US:
-                    next_mag_us = now_after + MAG_PERIOD_US
+                if now_after - next_mag_poll_us > MAG_POLL_PERIOD_US:
+                    next_mag_poll_us = now_after + MAG_POLL_PERIOD_US
 
             now_us = self.stack.clock.now_us()
             if now_us >= next_fifo_us:
-                time_to_mag = next_mag_us - now_us
+                time_to_mag = next_mag_poll_us - now_us
                 time_since_mag = now_us - self.stack.last_mag_bus_activity_us
                 if time_to_mag > FIFO_MAG_GUARD_US and time_since_mag > FIFO_MAG_GUARD_US:
                     self.service_fifo()
@@ -405,17 +413,22 @@ class Acquisition:
             now_us = self.stack.clock.now_us()
             if now_us >= next_tof_poll_us:
                 next_tof_poll_us = now_us + TOF_POLL_US
-                if next_mag_us - now_us > TOF_MAG_GUARD_US:
+                if next_mag_poll_us - now_us > TOF_MAG_GUARD_US:
                     self.service_tof()
 
+            # A ToF transfer may cross a 25 ms MAG poll deadline. Poll immediately
+            # afterwards rather than waiting for another scheduler pass.
             now_us = self.stack.clock.now_us()
-            if now_us >= next_mag_us:
+            if now_us >= next_mag_poll_us:
                 self.service_mag()
-                next_mag_us += MAG_PERIOD_US
+                next_mag_poll_us += MAG_POLL_PERIOD_US
+                now_after = self.stack.clock.now_us()
+                if now_after - next_mag_poll_us > MAG_POLL_PERIOD_US:
+                    next_mag_poll_us = now_after + MAG_POLL_PERIOD_US
 
             now_us = self.stack.clock.now_us()
             if now_us >= next_sync_us:
-                time_to_mag = next_mag_us - now_us
+                time_to_mag = next_mag_poll_us - now_us
                 time_since_mag = now_us - self.stack.last_mag_bus_activity_us
                 if (
                     time_to_mag > CLOCK_SYNC_MAG_GUARD_US
@@ -426,7 +439,7 @@ class Acquisition:
 
             now_us = self.stack.clock.now_us()
             if now_us >= next_fifo_us:
-                time_to_mag = next_mag_us - now_us
+                time_to_mag = next_mag_poll_us - now_us
                 time_since_mag = now_us - self.stack.last_mag_bus_activity_us
                 if time_to_mag > FIFO_MAG_GUARD_US and time_since_mag > FIFO_MAG_GUARD_US:
                     self.service_fifo()
